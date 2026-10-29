@@ -1,0 +1,9 @@
+# dsh-bundle patch：标准 bundle 自挂载（与 dsh-napcat / dsh-meme 同款写法）。
+#
+# 只要任意 DSH profile 把本包加进 dsh.profile.bundles（`dsh plugin add` 即自动完成），
+# 重启后这里就把插件行插入 loader 树，不需要手写 profile 用户层。
+#
+# 行 name 必须是包名原样（Host 半的导入说明符）。
+- insert:
+    - id: dsh-bili
+      name: 'dsh-bili'
