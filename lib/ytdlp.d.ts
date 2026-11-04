@@ -16,8 +16,13 @@ export interface YtDlpResult {
     title?: string;
     durationSec?: number;
 }
-/** 探测 yt-dlp（独立函数，方便 UI 显示依赖状态） */
+/**
+ * 探测 yt-dlp。找不到独立可执行文件时，再试 `python -m yt_dlp`（conda/pip 装的常见情况）。
+ * 返回的 path 可能是 "python"，调用方用 ytdlpArgs() 拼参数即可。
+ */
 export declare function resolveYtDlp(configured?: string): Promise<BinaryResult | undefined>;
+/** yt-dlp 的调用参数：独立可执行文件直接跑；python 兜底要加 `-m yt_dlp` */
+export declare function ytdlpArgs(bin: string, args: string[]): string[];
 /** 是否为"通用链接"（http/https，非 B 站） */
 export declare function isGenericVideoUrl(input: string): boolean;
 /**

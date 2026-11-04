@@ -16,12 +16,31 @@ export interface BinaryResult {
   source: 'config' | 'env' | 'path' | 'known-location'
 }
 
-const WINDOWS_KNOWN = [
-  'C:\\ffmpeg\\bin',
-  'C:\\Program Files\\ffmpeg\\bin',
-  'D:\\miniconda3\\Library\\bin',
-  'C:\\ProgramData\\chocolatey\\bin',
-]
+/** Windows 上常见的安装位置（进程 PATH 可能早于这些工具安装，必须自己找一遍） */
+function windowsKnown(): string[] {
+  const local = process.env.LOCALAPPDATA ?? ''
+  const roaming = process.env.APPDATA ?? ''
+  const user = process.env.USERPROFILE ?? ''
+  const list = [
+    'C:\\ffmpeg\\bin',
+    'C:\\Program Files\\ffmpeg\\bin',
+    'D:\\miniconda3\\Library\\bin',
+    'D:\\miniconda3\\Scripts',
+    'C:\\ProgramData\\miniconda3\\Scripts',
+    'C:\\ProgramData\\chocolatey\\bin',
+    'C:\\Program Files\\Scoop\\shims',
+    'C:\\tools',
+  ]
+  if (local !== '') {
+    list.push(join(local, 'Microsoft', 'WinGet', 'Links'))
+    list.push(join(local, 'Programs', 'Python', 'Scripts'))
+  }
+  if (roaming !== '') list.push(join(roaming, 'Python', 'Scripts'))
+  if (user !== '') list.push(join(user, 'scoop', 'shims'))
+  return list
+}
+
+const WINDOWS_KNOWN = windowsKnown()
 const LINUX_KNOWN = ['/usr/bin', '/usr/local/bin', '/opt/ffmpeg/bin']
 
 function knownDirs(): string[] {
@@ -67,7 +86,7 @@ export function probeBinary(bin: string, args: string[] = ['-version']): Promise
  * @param configured 配置里写死的路径（可为空）
  * @param envVar 环境变量名（如 FFMPEG_PATH）
  */
-export async function resolveBinary(name: string, configured = '', envVar = ''): Promise<BinaryResult | undefined> {
+export async function resolveBinary(name: string, configured = '', envVar = '', probeArgs: string[] = ['-version']): Promise<BinaryResult | undefined> {
   const candidates: Array<{ path: string; source: BinaryResult['source'] }> = []
   const file = exeName(name)
   if (configured.trim() !== '') candidates.push({ path: configured.trim(), source: 'config' })
@@ -78,7 +97,7 @@ export async function resolveBinary(name: string, configured = '', envVar = ''):
 
   for (const candidate of candidates) {
     if (candidate.source !== 'path' && !existsSync(candidate.path)) continue
-    const version = await probeBinary(candidate.path)
+    const version = await probeBinary(candidate.path, probeArgs)
     if (version !== undefined) return { path: candidate.path, version, source: candidate.source }
   }
   return undefined

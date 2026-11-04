@@ -297,16 +297,26 @@ export class BiliClient {
   }> {
     const info = await this.resolve(input)
     const qn = Math.max(16, Math.min(112, Math.round(options.quality ?? 64)))
-    const keys = await this.ensureWbiKeys()
+    // 先补游客 buvid3：B 站对"没有 buvid3 的裸请求"很容易回 412
+    await this.ensureVisitorCookie()
     const query: Record<string, string | number> = { bvid: info.bvid, cid: info.cid, qn, fnval: 16, fourk: 1 }
-    const url = keys === undefined
-      ? API + '/x/player/playurl?' + new URLSearchParams(Object.entries(query).map(([k, v]) => [k, String(v)] as [string, string])).toString()
-      : API + '/x/player/wbi/playurl?' + signQuery(query, keys.imgKey, keys.subKey)
-    const json = await getJson<BiliResponse<{
+    const params = new URLSearchParams(Object.entries(query).map(([k, v]) => [k, String(v)] as [string, string])).toString()
+    type PlayData = {
       dash?: { video?: Array<{ baseUrl?: string; base_url?: string }>; audio?: Array<{ baseUrl?: string; base_url?: string }> }
       durl?: Array<{ url?: string }>
-    }>>(url, this.httpOptions())
-    if (json.code !== 0) throw new HttpError('取视频流失败（B站返回 ' + String(json.code) + '）', undefined, json.code)
+    }
+    // 先走免签名接口：免登录下它最稳（实测容器/云端 wbi 签名反而容易被 412 风控）
+    let json = await getJson<BiliResponse<PlayData>>(API + '/x/player/playurl?' + params, this.httpOptions())
+    if (json.code !== 0) {
+      const keys = await this.ensureWbiKeys()
+      if (keys !== undefined) {
+        json = await getJson<BiliResponse<PlayData>>(
+          API + '/x/player/wbi/playurl?' + signQuery(query, keys.imgKey, keys.subKey),
+          this.httpOptions(),
+        )
+      }
+    }
+    if (json.code !== 0) throw new HttpError('取视频流失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）', undefined, json.code)
     const dashUrl = json.data?.dash?.video?.[0]?.baseUrl ?? json.data?.dash?.video?.[0]?.base_url
     const fallback = json.data?.durl?.[0]?.url
     const stream = (dashUrl ?? fallback ?? '').trim()
@@ -331,6 +341,16 @@ export class BiliClient {
     }
     if (this.cookie.trim() !== '') headers.Cookie = this.cookie
     return headers
+  }
+
+  /** cookie 的形态摘要（排障用：只给长度/段数/是否含关键字，不泄露值） */
+  get cookieShape(): string | undefined {
+    if (this.cookie === '') return undefined
+    const parts = this.cookie.split(';').length
+    const hasSession = this.cookie.includes('SESSDATA=')
+    const hasBuvid = this.cookie.includes('buvid3=')
+    const dup = (this.cookie.match(/SESSDATA=/g) ?? []).length > 1 ? '，⚠️ 出现两次 SESSDATA（可能把整段 cookie 又加了前缀）' : ''
+    return '长度 ' + String(this.cookie.length) + '，' + String(parts) + ' 段，含 SESSDATA=' + String(hasSession) + '，含 buvid3=' + String(hasBuvid) + dup
   }
 
   /**

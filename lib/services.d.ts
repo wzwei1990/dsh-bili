@@ -16,6 +16,8 @@ export interface StoryboardOutcome {
     imagePath: string;
     title: string;
     durationSec: number;
+    width: number;
+    height: number;
     timeline: Array<{
         index: number;
         atSec: number;
@@ -48,6 +50,8 @@ export declare class StoryboardService {
      */
     build(input: string): Promise<StoryboardOutcome>;
     private buildFromFile;
+    /** 把底层错误翻译成用户能行动的提示 */
+    private explain;
     private assertDuration;
     /** 把临时目录里的成品图挪到稳定目录（work dir 会被随机命名） */
     private persist;

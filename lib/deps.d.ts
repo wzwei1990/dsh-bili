@@ -11,7 +11,7 @@ export declare function probeBinary(bin: string, args?: string[]): Promise<strin
  * @param configured 配置里写死的路径（可为空）
  * @param envVar 环境变量名（如 FFMPEG_PATH）
  */
-export declare function resolveBinary(name: string, configured?: string, envVar?: string): Promise<BinaryResult | undefined>;
+export declare function resolveBinary(name: string, configured?: string, envVar?: string, probeArgs?: string[]): Promise<BinaryResult | undefined>;
 export interface StoryboardDeps {
     ffmpeg?: BinaryResult;
     ffprobe?: BinaryResult;

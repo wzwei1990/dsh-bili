@@ -35,6 +35,8 @@ export interface StoryboardOutcome {
   imagePath: string
   title: string
   durationSec: number
+  width: number
+  height: number
   timeline: Array<{ index: number; atSec: number; label: string }>
   withWaveform: boolean
   /** 数据来源：bili=官方流 / ytdlp=下载 / file=本地文件 */
@@ -129,6 +131,8 @@ export class StoryboardService {
           imagePath,
           title: info.title,
           durationSec: info.durationSec,
+          width: result.width,
+          height: result.height,
           timeline: result.timeline,
           withWaveform: result.withWaveform,
           source: 'bili',
@@ -144,7 +148,8 @@ export class StoryboardService {
     if (ytdlp === '') throw new Error('这个链接需要 yt-dlp（未安装）。B 站链接不需要它')
     const tmp = await mkdtemp(join(outDir, 'dl-'))
     try {
-      const downloaded = await downloadWithYtDlp(trimmed, {
+      const downloadTarget = isBiliId ? 'https://www.bilibili.com/video/' + trimmed : trimmed
+      const downloaded = await downloadWithYtDlp(downloadTarget, {
         bin: ytdlp,
         dir: tmp,
         maxDurationSec: this.options.maxMinutes > 0 ? this.options.maxMinutes * 60 : undefined,
@@ -173,10 +178,24 @@ export class StoryboardService {
       imagePath,
       title: filePath.split(/[\\/]/).pop() ?? filePath,
       durationSec: result.durationSec,
+      width: result.width,
+      height: result.height,
       timeline: result.timeline,
       withWaveform: result.withWaveform,
       source: 'file',
     }
+  }
+
+  /** 把底层错误翻译成用户能行动的提示 */
+  private explain(error: unknown): Error {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('412') || message.includes('风控')) {
+      return new Error(message + ' —— 机房/云服务器 IP 容易被风控，配置 SESSDATA（登录态）后基本可以绕过')
+    }
+    if (message.includes('403')) {
+      return new Error(message + ' —— 视频流地址被 CDN 拒绝，常见于未登录或签名过期；配置 SESSDATA 可提高成功率')
+    }
+    return error instanceof Error ? error : new Error(message)
   }
 
   private assertDuration(durationSec: number): void {

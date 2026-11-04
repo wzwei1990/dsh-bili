@@ -126,6 +126,8 @@ export declare class BiliClient {
     }>;
     /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
     private streamHeaders;
+    /** cookie 的形态摘要（排障用：只给长度/段数/是否含关键字，不泄露值） */
+    get cookieShape(): string | undefined;
     /**
      * 查登录状态（给设置页/doctor 用）：返回昵称与 mid，未登录时给出原因。
      * 顺带说明：SESSDATA 是登录凭证，时间戳没过期也可能被服务器判定失效。
