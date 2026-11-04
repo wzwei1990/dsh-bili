@@ -1,4 +1,9 @@
 import { type DanmakuSummary } from './danmaku.js';
+/**
+ * cookie 规整：用户可能①只填 SESSDATA 的值，也可能②直接粘贴整段 cookie（含 DedeUserID 等，常带换行）。
+ * 统一行为：去掉换行/多余空格、补齐分隔符；只填值的情况补上 `SESSDATA=` 前缀。
+ */
+export declare function normalizeCookie(raw: string): string;
 export interface VideoInfo {
     bvid: string;
     aid: number;
@@ -121,6 +126,18 @@ export declare class BiliClient {
     }>;
     /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
     private streamHeaders;
+    /**
+     * 查登录状态（给设置页/doctor 用）：返回昵称与 mid，未登录时给出原因。
+     * 顺带说明：SESSDATA 是登录凭证，时间戳没过期也可能被服务器判定失效。
+     */
+    loginState(): Promise<{
+        configured: boolean;
+        isLogin: boolean;
+        uname?: string;
+        mid?: number;
+        level?: number;
+        message?: string;
+    }>;
     /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */
     /**
      * 拿 WBI 密钥。未登录时 nav 会返回 -101，所以先补一个游客 cookie（buvid3）再试；

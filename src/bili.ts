@@ -12,6 +12,23 @@ import { followRedirect, getJson, HttpError, type HttpOptions } from './http.js'
 import { fetchDanmakuXml, parseDanmakuXml, summarizeDanmaku, type DanmakuSummary } from './danmaku.js'
 import { signQuery } from './wbi.js'
 
+/**
+ * cookie 规整：用户可能①只填 SESSDATA 的值，也可能②直接粘贴整段 cookie（含 DedeUserID 等，常带换行）。
+ * 统一行为：去掉换行/多余空格、补齐分隔符；只填值的情况补上 `SESSDATA=` 前缀。
+ */
+export function normalizeCookie(raw: string): string {
+  const flattened = raw.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim()
+  if (flattened === '') return ''
+  const looksLikeCookie = /(?:^|;\s*)[A-Za-z0-9_]+=/.test(flattened)
+  const value = looksLikeCookie ? flattened : 'SESSDATA=' + flattened
+  // 用 "; " 重新拼接，去掉空段与尾部散落的分号
+  const pairs = value
+    .split(';')
+    .map(pair => pair.trim())
+    .filter(pair => pair !== '' && pair.includes('='))
+  return pairs.join('; ')
+}
+
 export interface VideoInfo {
   bvid: string
   aid: number
@@ -122,7 +139,7 @@ export class BiliClient {
   private wbiKeys: { imgKey: string; subKey: string; at: number } | undefined
 
   constructor(options: BiliClientOptions = {}) {
-    this.cookie = options.cookie ?? ''
+    this.cookie = normalizeCookie(options.cookie ?? '')
     this.timeoutMs = options.timeoutMs ?? 15000
     this.cacheTtlMs = options.cacheTtlMs ?? 24 * 60 * 60_000
     this.cacheDir = options.cacheDir ?? join(homedir(), '.dsh', 'dsh-bili', 'cache')
@@ -314,6 +331,33 @@ export class BiliClient {
     }
     if (this.cookie.trim() !== '') headers.Cookie = this.cookie
     return headers
+  }
+
+  /**
+   * 查登录状态（给设置页/doctor 用）：返回昵称与 mid，未登录时给出原因。
+   * 顺带说明：SESSDATA 是登录凭证，时间戳没过期也可能被服务器判定失效。
+   */
+  async loginState(): Promise<{ configured: boolean; isLogin: boolean; uname?: string; mid?: number; level?: number; message?: string }> {
+    if (this.cookie.trim() === '') return { configured: false, isLogin: false, message: '未配置 SESSDATA' }
+    try {
+      const json = await getJson<BiliResponse<{ isLogin?: boolean; uname?: string; mid?: number; level_info?: { current_level?: number } }>>(
+        API + '/x/web-interface/nav',
+        this.httpOptions(),
+      )
+      const data = json.data
+      if (json.code === 0 && data?.isLogin === true) {
+        return {
+          configured: true,
+          isLogin: true,
+          ...(data.uname === undefined ? {} : { uname: data.uname }),
+          ...(data.mid === undefined ? {} : { mid: data.mid }),
+          ...(data.level_info?.current_level === undefined ? {} : { level: data.level_info.current_level }),
+        }
+      }
+      return { configured: true, isLogin: false, message: json.message ?? ('code ' + String(json.code)) }
+    } catch (error) {
+      return { configured: true, isLogin: false, message: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */

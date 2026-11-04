@@ -102,3 +102,15 @@ test('弹幕文本：带高光时段与来源', async () => {
   assert.ok(text.includes('这段太强了'))
   assert.ok(text.includes('来源：https://www.bilibili.com/video/BV1xx'))
 })
+test('cookie 规整：只填 SESSDATA 值 / 整段多行 cookie 都能用', async () => {
+  const { normalizeCookie } = await import('../lib/bili.js')
+  // 只填值
+  assert.equal(normalizeCookie('abc%2C123%2Cdef'), 'SESSDATA=abc%2C123%2Cdef')
+  // 整段、带换行与多余空格
+  const raw = 'buvid3=AAA;\n  b_nut=1; SESSDATA=xyz%2C2%2Cq;\n  DedeUserID=42;'
+  const out = normalizeCookie(raw)
+  assert.equal(out, 'buvid3=AAA; b_nut=1; SESSDATA=xyz%2C2%2Cq; DedeUserID=42')
+  assert.ok(!out.includes('\n'), '不能把换行带进 HTTP 头')
+  // 空值
+  assert.equal(normalizeCookie('   '), '')
+})
