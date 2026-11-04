@@ -71,3 +71,34 @@ test('摘要文本：有字幕/无字幕两种形态', () => {
   const withoutSub = digestOf(info, '', false)
   assert.ok(withoutSub.includes('没有可用字幕'))
 })
+test('弹幕解析：XML → 时间/文本，坏数据跳过', async () => {
+  const { parseDanmakuXml } = await import('../lib/danmaku.js')
+  const xml = '<i><d p="12.5,1,25,16777215,1,0,abc,123">哈哈哈</d><d p="bad,1">x</d><d p="30,1">前方高能</d></i>'
+  const items = parseDanmakuXml(xml)
+  assert.equal(items.length, 2)
+  assert.equal(items[0].at, 12.5)
+  assert.equal(items[0].text, '哈哈哈')
+  assert.equal(items[1].at, 30)
+})
+
+test('弹幕统计：高光时段按密度排序 + 样本去噪声', async () => {
+  const { summarizeDanmaku, clockOf } = await import('../lib/danmaku.js')
+  const items = []
+  for (let i = 0; i < 30; i += 1) items.push({ at: i * 0.5, text: '名场面' + String(i % 3), mode: 1 }) // 0-15s 密集
+  for (let i = 0; i < 5; i += 1) items.push({ at: 120 + i, text: '哈哈', mode: 1 })                     // 噪声
+  const summary = summarizeDanmaku(items, 200, { bucketSec: 30, peakCount: 2 })
+  assert.equal(summary.total, 35)
+  assert.equal(summary.peaks[0].startSec, 0)
+  assert.ok(summary.peaks[0].samples.length > 0)
+  assert.ok(!summary.samples.includes('哈哈'), '纯笑声不该进样本')
+  assert.equal(clockOf(95), '01:35')
+})
+
+test('弹幕文本：带高光时段与来源', async () => {
+  const { summarizeDanmaku, danmakuText } = await import('../lib/danmaku.js')
+  const items = [{ at: 5, text: '这段太强了', mode: 1 }, { at: 8, text: '这段太强了', mode: 1 }]
+  const text = danmakuText(summarizeDanmaku(items, 60), 60, 'https://www.bilibili.com/video/BV1xx')
+  assert.ok(text.includes('弹幕概况'))
+  assert.ok(text.includes('这段太强了'))
+  assert.ok(text.includes('来源：https://www.bilibili.com/video/BV1xx'))
+})

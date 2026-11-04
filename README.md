@@ -57,8 +57,8 @@ dsh plugin --profile web add github:wzwei1990/dsh-bili
 ## 路线图
 
 - [x] **P0** 链接解析 + 视频信息 + 字幕读取 + 三个工具
-- [ ] **P0.5** `card()` 分享卡片（配合 dsh-napcat 发"标题+封面+摘要+链接"）
-- [ ] **P1** 无字幕视频的兜底：ASR（参考 dsh-bilibili 的 bcut / whisper 路线）
+- [x] **P0.5** 弹幕概况（免登录）：总条数 / 高光时段 / 被反复刷的梗 → `bili_danmaku`
+- [x] **P1** 画面分镜：9 帧拼一张（时间戳 + 音频响度条）；B 站走官方流，其它链接走 yt-dlp
 - [ ] **P2** 搜索/首页/UP 主列表 + Web 浏览面板
 - [ ] **P3** 直播弹幕读取（WebSocket + brotli 解包）
 - [ ] **P4** 直播回弹幕（默认关闭 + 限速 + 管理员）

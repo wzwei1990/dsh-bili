@@ -1,3 +1,4 @@
+import { type DanmakuSummary } from './danmaku.js';
 export interface VideoInfo {
     bvid: string;
     aid: number;
@@ -90,10 +91,36 @@ export declare class BiliClient {
         tracks: SubtitleTrack[];
     }>;
     /** 字幕正文：优先中文（含 AI 字幕），没有就返回空并说明。 */
+    /**
+     * 拉弹幕并压成"高光时段 + 代表弹幕"。
+     * 免登录可用（实测 dm/list.so 返回明文 XML）；有 cookie 时带上即可。
+     */
+    danmaku(input: string, options?: {
+        cid?: number;
+    }): Promise<{
+        info: VideoInfo;
+        summary: DanmakuSummary;
+    }>;
     readSubtitle(input: string, options?: {
         maxChars?: number;
         cid?: number;
     }): Promise<SubtitleResult>;
+    /**
+     * 取可直连的视频流地址（给 ffmpeg 抽帧用）。
+     * 优先 DASH（fnval=16），退回 durl；都不行就抛错由上层降级。
+     */
+    streamUrl(input: string, options?: {
+        quality?: number;
+    }): Promise<{
+        info: VideoInfo;
+        url: string;
+        /** DASH 的音频流（波形图用；没有就是 undefined） */
+        audioUrl?: string;
+        headers: Record<string, string>;
+        quality: number;
+    }>;
+    /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
+    private streamHeaders;
     /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */
     /**
      * 拿 WBI 密钥。未登录时 nav 会返回 -101，所以先补一个游客 cookie（buvid3）再试；

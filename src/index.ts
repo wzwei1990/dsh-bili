@@ -14,6 +14,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { BiliClient } from './bili.js'
 import { Config, resolveConfig, type ConfigShape } from './config.js'
 import { registerTools } from './tools.js'
+import { StoryboardService } from './services.js'
 
 export { Config }
 
@@ -42,8 +43,18 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
   })
 
+  const storyboard = new StoryboardService({
+    client,
+    enabled: config.storyboard,
+    frames: config.storyboardFrames,
+    maxMinutes: config.maxStoryboardMinutes,
+    ffmpegPath: config.ffmpegPath,
+    ytdlpPath: config.ytdlpPath,
+    log,
+  })
   registerTools(ctx, client, {
     subtitleMaxChars: config.subtitleMaxChars,
+    storyboard,
     log,
   })
 
@@ -55,6 +66,11 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       resolve: (input: string) => client.resolve(input),
       subtitle: (input: string, options?: { maxChars?: number }) => client.readSubtitle(input, options),
       card: (input: string) => client.card(input),
+      /** 弹幕概况（免登录）：高光时段 + 被反复刷的弹幕，供通道注入"看过"的上下文 */
+      danmaku: (input: string, options?: { cid?: number }) => client.danmaku(input, options),
+      /** 分镜：B 站链接 / 其它链接（yt-dlp）/ 本地文件都行 */
+      storyboard: (input: string) => storyboard.build(input),
+      depsStatus: () => storyboard.depsStatus(),
     })
   } catch {
     log('debug', '宿主不支持 provide(dshBili)，跳过服务注册（工具仍可用）')

@@ -5,8 +5,10 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import type { BiliClient, VideoInfo } from './bili.js';
+import type { StoryboardService } from './services.js';
 export interface ToolDeps {
     subtitleMaxChars: number;
+    storyboard: StoryboardService;
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
 /** 把视频信息 + 字幕拼成给模型读的文本。 */

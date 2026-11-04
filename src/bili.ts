@@ -9,6 +9,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { followRedirect, getJson, HttpError, type HttpOptions } from './http.js'
+import { fetchDanmakuXml, parseDanmakuXml, summarizeDanmaku, type DanmakuSummary } from './danmaku.js'
 import { signQuery } from './wbi.js'
 
 export interface VideoInfo {
@@ -219,6 +220,22 @@ export class BiliClient {
   }
 
   /** 字幕正文：优先中文（含 AI 字幕），没有就返回空并说明。 */
+  /**
+   * 拉弹幕并压成"高光时段 + 代表弹幕"。
+   * 免登录可用（实测 dm/list.so 返回明文 XML）；有 cookie 时带上即可。
+   */
+  async danmaku(input: string, options: { cid?: number } = {}): Promise<{ info: VideoInfo; summary: DanmakuSummary }> {
+    const info = await this.resolve(input)
+    const cid = options.cid ?? info.cid
+    const cacheKey = 'dm:' + info.bvid + ':' + String(cid)
+    const cached = this.cacheGet<DanmakuSummary>(cacheKey)
+    if (cached !== undefined) return { info, summary: cached }
+    const xml = await fetchDanmakuXml(cid, { cookie: this.httpOptions().cookie, timeoutMs: this.httpOptions().timeoutMs })
+    const items = parseDanmakuXml(xml)
+    const summary = summarizeDanmaku(items, info.durationSec)
+    this.cacheSet(cacheKey, summary)
+    return { info, summary }
+  }
   async readSubtitle(input: string, options: { maxChars?: number; cid?: number } = {}): Promise<SubtitleResult> {
     const { info, tracks } = await this.subtitleTracks(input, options.cid)
     const maxChars = Math.max(200, options.maxChars ?? 6000)
@@ -247,6 +264,56 @@ export class BiliClient {
     }
     this.cacheSet(cacheKey, result)
     return trimTo(result, maxChars)
+  }
+
+  /**
+   * 取可直连的视频流地址（给 ffmpeg 抽帧用）。
+   * 优先 DASH（fnval=16），退回 durl；都不行就抛错由上层降级。
+   */
+  async streamUrl(input: string, options: { quality?: number } = {}): Promise<{
+    info: VideoInfo
+    url: string
+    /** DASH 的音频流（波形图用；没有就是 undefined） */
+    audioUrl?: string
+    headers: Record<string, string>
+    quality: number
+  }> {
+    const info = await this.resolve(input)
+    const qn = Math.max(16, Math.min(112, Math.round(options.quality ?? 64)))
+    const keys = await this.ensureWbiKeys()
+    const query: Record<string, string | number> = { bvid: info.bvid, cid: info.cid, qn, fnval: 16, fourk: 1 }
+    const url = keys === undefined
+      ? API + '/x/player/playurl?' + new URLSearchParams(Object.entries(query).map(([k, v]) => [k, String(v)] as [string, string])).toString()
+      : API + '/x/player/wbi/playurl?' + signQuery(query, keys.imgKey, keys.subKey)
+    const json = await getJson<BiliResponse<{
+      dash?: { video?: Array<{ baseUrl?: string; base_url?: string }>; audio?: Array<{ baseUrl?: string; base_url?: string }> }
+      durl?: Array<{ url?: string }>
+    }>>(url, this.httpOptions())
+    if (json.code !== 0) throw new HttpError('取视频流失败（B站返回 ' + String(json.code) + '）', undefined, json.code)
+    const dashUrl = json.data?.dash?.video?.[0]?.baseUrl ?? json.data?.dash?.video?.[0]?.base_url
+    const fallback = json.data?.durl?.[0]?.url
+    const stream = (dashUrl ?? fallback ?? '').trim()
+    if (stream === '') throw new HttpError('B站没有返回可用的视频流地址')
+    const audio = (json.data?.dash?.audio?.[0]?.baseUrl ?? json.data?.dash?.audio?.[0]?.base_url ?? '').trim()
+    const result: {
+      info: VideoInfo
+      url: string
+      audioUrl?: string
+      headers: Record<string, string>
+      quality: number
+    } = { info, url: stream, headers: this.streamHeaders(), quality: qn }
+    if (audio !== '') result.audioUrl = audio
+    return result
+  }
+
+  /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
+  private streamHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      Referer: 'https://www.bilibili.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    }
+    if (this.cookie.trim() !== '') headers.Cookie = this.cookie
+    return headers
   }
 
   /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */

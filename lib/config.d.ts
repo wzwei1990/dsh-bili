@@ -9,6 +9,16 @@ export interface ConfigShape {
     timeoutMs: number;
     /** 字幕正文最多返回多少字符（太长会撑爆上下文，超出截断并在文本里标注） */
     subtitleMaxChars: number;
+    /** 是否抽帧做分镜图（默认开；超长视频会跳过） */
+    storyboard: boolean;
+    /** 分镜帧数（4/9/16） */
+    storyboardFrames: number;
+    /** 超过这个时长就不抽帧（分钟，0=不限） */
+    maxStoryboardMinutes: number;
+    /** ffmpeg 路径（空=自动探测） */
+    ffmpegPath: string;
+    /** yt-dlp 路径（空=自动探测；只用于非 B 站链接） */
+    ytdlpPath: string;
     /** 视频信息/字幕缓存有效期（分钟，0=不缓存） */
     cacheTtlMinutes: number;
     /** 日志级别 */
@@ -17,12 +27,22 @@ export interface ConfigShape {
 export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
+    storyboard: z<boolean, boolean, "volatile-defined">;
+    storyboardFrames: z<number, number, "volatile-defined">;
+    maxStoryboardMinutes: z<number, number, "volatile-defined">;
+    ffmpegPath: z<string, string, "volatile-defined">;
+    ytdlpPath: z<string, string, "volatile-defined">;
     subtitleMaxChars: z<number, number, "volatile-defined">;
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
+    storyboard: z<boolean, boolean, "volatile-defined">;
+    storyboardFrames: z<number, number, "volatile-defined">;
+    maxStoryboardMinutes: z<number, number, "volatile-defined">;
+    ffmpegPath: z<string, string, "volatile-defined">;
+    ytdlpPath: z<string, string, "volatile-defined">;
     subtitleMaxChars: z<number, number, "volatile-defined">;
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;

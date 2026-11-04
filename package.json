@@ -1,6 +1,6 @@
 {
   "name": "dsh-bili",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bilibili for DeepSeek Harness: resolve b23/BV links, read subtitles, hand the content to the model (roadmap: browse, share cards, live danmaku)",
   "type": "module",
   "main": "lib/index.js",
@@ -10,12 +10,16 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": {
+      "default": "./client/index.js"
+    }
   },
   "files": [
     "lib",
     "cordis.patch.yml",
-    "dsh.plugin.json"
+    "dsh.plugin.json",
+    "client"
   ],
   "keywords": [
     "dsh",
@@ -42,6 +46,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
     }
   },
   "peerDependencies": {
