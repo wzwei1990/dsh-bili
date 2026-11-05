@@ -18,6 +18,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config, resolveConfig, type ConfigShape } from './config.js'
 import { BiliClient } from './bili.js'
 import { SearchClient } from './search.js'
+import { CommentClient } from './comments.js'
+import { ReplyWatchStore } from './replywatch.js'
+import { checkReplyWatches } from './replycheck.js'
 import { StoryboardService } from './services.js'
 import { registerTools } from './tools.js'
 import { MIN_REAL_COOKIE_LENGTH, readCookieFromProfiles } from './profilecookie.js'
@@ -137,10 +140,60 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
   })
 
+  // 评论读缓存（风控保护）：和搜索分开，缓存键带页/排序
+  const commentCache = new Map<string, { value: unknown; at: number }>()
+  const commentTtl = Math.max(0, config.commentCacheMinutes) * 60_000
+
+  // 评论/互动：读用 wbi，写要 allowWrite + bili_jct + 限频 + 风控冷却
+  const comments = new CommentClient({
+    cookie: client.cookieValue,
+    timeoutMs: config.timeoutMs,
+    wbiKeys: () => client.wbiKeys(),
+    resolve: async target => {
+      const info = await client.resolve(target)
+      return { bvid: info.bvid, aid: info.aid, cid: info.cid, title: info.title }
+    },
+    write: {
+      enabled: config.allowWrite,
+      perHour: config.writePerHour,
+      cooldownMinutes: config.writeCooldownMinutes,
+    },
+    auditFile: join(dshHome !== undefined && dshHome !== '' ? dshHome : join(homedir(), '.dsh'), 'dsh-bili', 'audit.jsonl'),
+    cacheGet: <T>(key: string): T | undefined => {
+      const hit = commentCache.get(key)
+      if (hit === undefined) return undefined
+      if (commentTtl <= 0 || Date.now() - hit.at >= commentTtl) {
+        commentCache.delete(key)
+        return undefined
+      }
+      return hit.value as T
+    },
+    cacheSet: (key: string, value: unknown) => {
+      commentCache.set(key, { value, at: Date.now() })
+      if (commentCache.size > 300) {
+        const oldest = [...commentCache.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, 60)
+        for (const [key2] of oldest) commentCache.delete(key2)
+      }
+    },
+    log,
+  })
+
+  const watches = new ReplyWatchStore({
+    file: join(dshHome !== undefined && dshHome !== '' ? dshHome : join(homedir(), '.dsh'), 'dsh-bili', 'reply-watch.json'),
+    keepDays: config.replyWatchDays,
+    maxFailures: 3,
+    log,
+  })
+  log('info', '回复监听保留 ' + (config.replyWatchDays > 0 ? String(config.replyWatchDays) + ' 天（过期自动清理）' : '永久'))
+
   registerTools(ctx, client, {
     subtitleMaxChars: config.subtitleMaxChars,
     storyboard,
     search,
+    comments,
+    watches,
+    replyWatchMax: config.replyWatchMax,
+    autoWatchOwnComments: config.autoWatchOwnComments,
     cookieInfo: () => ({ source: cookieSource, length: cookieValue.length, normalized: client.cookieValue.length }),
     log,
   })
@@ -170,6 +223,20 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
         search.upVideos(mid, page ?? 1, pageSize ?? 10),
       /** UP 动态 */
       upDynamics: (mid: number, limit?: number) => search.upDynamics(mid, limit ?? 10),
+      /** 评论读取 */
+      comments: (target: string, options?: { page?: number; sort?: 0 | 1 | 2; pageSize?: number }) =>
+        comments.read(target, options ?? {}),
+      /** 子评论 */
+      commentReplies: (target: string, root: number, page?: number) => comments.readReplies(target, root, page ?? 1),
+      /** 写操作状态（是否开启 / csrf / 冷却 / 本小时已用） */
+      writeStatus: () => comments.writeStatus(),
+      /** 回复监听：登记表 */
+      replyWatches: () => watches.list(),
+      /**
+       * 回复监听：检查并推进游标（渠道插件定时调用，发管理员私聊）
+       * 返回 [{ watch, items }]，items 是自上次以来的新增
+       */
+      checkReplies: async () => checkReplyWatches({ watches, comments, log }),
     })
   } catch {
     log('debug', '宿主不支持 provide(dshBili)，跳过服务注册（工具仍可用）')

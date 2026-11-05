@@ -37,6 +37,28 @@
         { section: '搜索' },
         { key: 'searchCacheMinutes', label: '搜索/UP 结果缓存（分钟）', kind: 'number', hint: '默认 5，减少接口压力' },
 
+        { section: '写操作（评论 / 互动）' },
+        {
+          key: 'allowWrite',
+          label: '允许写操作（发评论 / 点赞 / 投币 / 发弹幕）',
+          kind: 'boolean',
+          hint: '默认关闭。打开后会真实作用于你的 B 站账号，每次写都记审计（~/.dsh/dsh-bili/audit.jsonl）。',
+        },
+        { key: 'writePerHour', label: '每小时最多写几次', kind: 'number', hint: '默认 5，风控保护' },
+        { key: 'writeCooldownMinutes', label: '命中风控后冷却（分钟）', kind: 'number', hint: '默认 30' },
+        { key: 'commentCacheMinutes', label: '评论读取缓存（分钟，0=不缓存）', kind: 'number', hint: '默认 3，减少评论接口压力' },
+        { key: 'replyWatchMax', label: '回复监听最多几条', kind: 'number', hint: '默认 20' },
+        { key: 'autoWatchOwnComments', label: '发完评论自动盯它（有人回复能被检查出来）', kind: 'boolean', hint: '默认开启' },
+        { key: 'replyWatchDays', label: '监听保留天数（0=永久；过期自动清理）', kind: 'number', hint: '默认 7 天；连续 3 次检查失败（评论被删）也会自动清理' },
+
+        { section: '登录态文件' },
+        {
+          key: 'cookieFile',
+          label: 'cookie 文件路径（留空=~/.dsh/dsh-bili/cookie.txt，存在则优先）',
+          kind: 'text',
+          hint: '配置里的多行 cookie 可能被宿主截断；文件方式更稳，插件也会自动把可用值同步到这个文件。',
+        },
+
         { section: '画面分镜' },
         {
           key: 'storyboard',

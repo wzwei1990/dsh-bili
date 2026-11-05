@@ -1,6 +1,6 @@
 {
   "name": "dsh-bili",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Bilibili for DeepSeek Harness: resolve b23/BV links, read subtitles, hand the content to the model (roadmap: browse, share cards, live danmaku)",
   "type": "module",
   "main": "lib/index.js",

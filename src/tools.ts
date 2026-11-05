@@ -10,11 +10,22 @@ import type { BiliClient, VideoInfo } from './bili.js'
 import { danmakuText } from './danmaku.js'
 import type { StoryboardService } from './services.js'
 import type { SearchClient } from './search.js'
+import type { CommentClient } from './comments.js'
+import type { ReplyWatchStore } from './replywatch.js'
+import { checkReplyWatches } from './replycheck.js'
 
 export interface ToolDeps {
   subtitleMaxChars: number
   storyboard: StoryboardService
   search: SearchClient
+  /** 评论/互动（读写） */
+  comments: CommentClient
+  /** 回复监听登记表 */
+  watches: ReplyWatchStore
+  /** 最多登记几条监听 */
+  replyWatchMax: number
+  /** 发完评论是否自动盯它 */
+  autoWatchOwnComments: boolean
   /** cookie 来源诊断（来源路径 + 原始/规整后长度） */
   cookieInfo?: () => { source: string; length: number; normalized: number }
   log: (level: 'debug' | 'info' | 'warn', message: string) => void
@@ -285,4 +296,265 @@ export function registerTools(ctx: Context, client: BiliClient, deps: ToolDeps):
     },
   }))
 
+
+  // ---- 评论 / 互动（2026-11-05） ----
+
+  ctx.tools.register(defineTool({
+    name: 'bili_comments',
+    description: '读一个 B 站视频的评论（一级评论，含作者/点赞数/回复数）。适合"观众怎么评价""有没有神评"。分页用 page 参数。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      page: { type: 'number', description: '页码，从 1 开始（默认 1）' },
+      sort: { type: 'number', description: '排序：0=按时间 1=按点赞（默认） 2=按回复' },
+      pageSize: { type: 'number', description: '每页条数 1~20（默认 20）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => true,
+    execute: async args => {
+      const input = args as { url: string; page?: number; sort?: number; pageSize?: number }
+      try {
+        const sort = input.sort === 0 || input.sort === 2 ? input.sort : 1
+        const page = await deps.comments.read(input.url, {
+          page: Number(input.page ?? 1),
+          sort,
+          pageSize: Number(input.pageSize ?? 20),
+        })
+        if (page.items.length === 0) return '【' + page.video.title + '】没有评论（或该视频关闭了评论区）。'
+        const lines = page.items.map((item, index) => {
+          const time = new Date(item.ctime * 1000).toLocaleString('zh-CN', { hour12: false })
+          const head = String((page.items.length === 0 ? index : (Number(input.page ?? 1) - 1) * Number(input.pageSize ?? 20) + index + 1)) + '. '
+            + (item.author.name || '匿名') + '（Lv' + String(item.author.level) + '）' + ' 赞' + String(item.like)
+            + (item.replyCount > 0 ? ' 回' + String(item.replyCount) : '') + ' ' + time
+          const body = item.message.replace(/\n+/g, ' ').slice(0, 200)
+          return head + '\n   rpid=' + String(item.rpid) + ' | ' + body
+        })
+        return '【' + page.video.title + '】评论 共 ' + String(page.total) + ' 条，本页 ' + String(page.items.length) + ' 条'
+          + (page.end ? '（已到末页）' : '（下一页 page=' + String(Number(input.page ?? 1) + 1) + '）') + '\n\n'
+          + lines.join('\n')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        deps.log('warn', '读评论失败: ' + message)
+        return '读评论失败：' + message
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_comment_replies',
+    description: '读某条评论下的回复（子评论）。需要先通过 bili_comments 拿到 rpid。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      root: { type: 'number', required: true, description: '根评论 id（rpid）' },
+      page: { type: 'number', description: '页码（默认 1）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => true,
+    execute: async args => {
+      const input = args as { url: string; root: number; page?: number }
+      try {
+        const page = await deps.comments.readReplies(input.url, Number(input.root), Number(input.page ?? 1))
+        if (page.items.length === 0) return '这条评论下没有回复。'
+        return page.items.map(item => '· ' + (item.author.name || '匿名') + '：' + item.message.replace(/\n+/g, ' ').slice(0, 200)
+          + '（rpid=' + String(item.rpid) + '）').join('\n')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return '读回复失败：' + message
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_comment',
+    description: '【写操作】在视频下发评论，或回复某条评论（传 root）。需要管理员开启「允许写操作」，会真实作用于你的账号。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      message: { type: 'string', required: true, description: '评论内容' },
+      root: { type: 'number', description: '要回复的根评论 rpid（可选；不传=发新评论）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { url: string; message: string; root?: number }
+      try {
+        const result = await deps.comments.post(input.url, input.message, input.root === undefined ? {} : { root: Number(input.root) })
+        let watchNote = ''
+        if (deps.autoWatchOwnComments && result.rpid > 0) {
+          try {
+            const watch = deps.watches.add({ bvid: result.video.bvid, root: result.rpid, lastSeenRpid: 0, note: '自己发的评论', max: deps.replyWatchMax })
+            watchNote = '\n已自动盯这条评论（有人回复后调 bili_reply_check 就能看到），监听 id=' + watch.watch.id
+          } catch (error) {
+            watchNote = '\n（监听登记失败：' + (error instanceof Error ? error.message : String(error)) + '）'
+          }
+        }
+        return '已发布评论（rpid=' + String(result.rpid) + '）：' + result.video.title
+          + '\n链接：https://www.bilibili.com/video/' + result.video.bvid + watchNote
+      } catch (error) {
+        return '发评论失败：' + (error instanceof Error ? error.message : String(error))
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_like',
+    description: '【写操作】给视频点赞或取消点赞。需要开启「允许写操作」。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      off: { type: 'boolean', description: '传 true = 取消点赞（默认点赞）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { url: string; off?: boolean }
+      try {
+        const result = await deps.comments.like(input.url, input.off !== true)
+        return (result.on ? '已点赞：' : '已取消点赞：') + result.video.title
+      } catch (error) {
+        return '点赞失败：' + (error instanceof Error ? error.message : String(error))
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_coin',
+    description: '【写操作】给视频投币（1 或 2 枚）。需要开启「允许写操作」。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      count: { type: 'number', description: '投几枚（1 或 2，默认 1）' },
+      alsoLike: { type: 'boolean', description: '投币时同时点赞（默认 false）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { url: string; count?: number; alsoLike?: boolean }
+      try {
+        const result = await deps.comments.coin(input.url, Number(input.count ?? 1), input.alsoLike === true)
+        return '已投币 ' + String(result.count) + ' 枚：' + result.video.title
+      } catch (error) {
+        return '投币失败：' + (error instanceof Error ? error.message : String(error))
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_danmaku_send',
+    description: '【写操作】给视频发一条弹幕。需要开启「允许写操作」。注意：弹幕会出现在视频画面上，谨慎使用。',
+    parameters: {
+      url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号' },
+      text: { type: 'string', required: true, description: '弹幕内容' },
+      at: { type: 'number', description: '出现时间点（秒，默认 1）' },
+      mode: { type: 'number', description: '模式：1=滚动（默认） 4=底部 5=顶部' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { url: string; text: string; at?: number; mode?: number }
+      try {
+        const result = await deps.comments.sendDanmaku(input.url, input.text, {
+          progressSec: Number(input.at ?? 1),
+          ...(input.mode === undefined ? {} : { mode: Number(input.mode) }),
+        })
+        return '已发送弹幕（' + String(result.progress / 1000) + 's）：' + result.video.title
+      } catch (error) {
+        return '发弹幕失败：' + (error instanceof Error ? error.message : String(error))
+      }
+    },
+  }))
+
+  // ---- 回复监听（2026-11-05） ----
+
+  ctx.tools.register(defineTool({
+    name: 'bili_reply_watch',
+    description: '登记/取消/查看"回复监听"：盯住某条评论（rpid）或整个视频的新评论。登记后用 bili_reply_check 拉增量。',
+    parameters: {
+      action: { type: 'string', required: true, description: 'add=登记 remove=取消 list=查看' },
+      url: { type: 'string', description: 'B 站链接 / BV 号（add 时必填）' },
+      root: { type: 'number', description: '根评论 rpid（add 时用；0=盯整个视频的新评论）' },
+      note: { type: 'string', description: '备注：为什么盯它' },
+      id: { type: 'string', description: '监听 id（remove 时必填）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { action: string; url?: string; root?: number; note?: string; id?: string }
+      const action = input.action.trim()
+      if (action === 'list') {
+        const items = deps.watches.list()
+        if (items.length === 0) return '当前没有回复监听。'
+        const now = Date.now()
+        return items.map(item => {
+          const left = item.expiresAt > 0
+            ? '（还剩 ' + String(Math.max(0, Math.ceil((item.expiresAt - now) / 86_400_000))) + ' 天）'
+            : '（永久）'
+          return '· ' + item.id + '  ' + item.bvid + (item.root > 0 ? '  rpid=' + String(item.root) : '  整个视频')
+            + (item.note !== '' ? '  「' + item.note + '」' : '') + '  已见 ' + String(item.lastSeenRpid) + ' ' + left
+        }).join('\n')
+      }
+      if (action === 'remove') {
+        if (input.id === undefined || input.id.trim() === '') return 'remove 需要 id。'
+        return deps.watches.remove(input.id.trim()) ? '已取消监听 ' + input.id : '没有这个监听：' + input.id
+      }
+      if (action === 'add') {
+        if (input.url === undefined || input.url.trim() === '') return 'add 需要 url。'
+        try {
+          const info = await client.resolve(input.url)
+          const root = Math.max(0, Math.round(Number(input.root ?? 0)))
+          // 已存在时以当前最大 rpid 作为游标，避免把历史回复全算成新的
+          let baseline = 0
+          if (root > 0) {
+            const replies = await deps.comments.readReplies(input.url, root, 1)
+            baseline = replies.items.reduce((max, item) => Math.max(max, item.rpid), 0)
+          } else {
+            const page = await deps.comments.read(input.url, { page: 1, sort: 0, pageSize: 20 })
+            baseline = page.items.reduce((max, item) => Math.max(max, item.rpid), 0)
+          }
+          const result = deps.watches.add({ bvid: info.bvid, root, lastSeenRpid: baseline, max: deps.replyWatchMax, ...(input.note === undefined ? {} : { note: input.note }) })
+          return (result.created ? '已登记监听：' : '这个目标已经在监听里：') + result.watch.id
+            + '\n目标：' + info.title + '\n' + (root > 0 ? '回复某条评论 rpid=' + String(root) : '整个视频的新评论')
+            + '\n基线 rpid=' + String(baseline)
+        } catch (error) {
+          return '登记监听失败：' + (error instanceof Error ? error.message : String(error))
+        }
+      }
+      return '不认识的 action：' + action + '（用 add / remove / list）'
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'bili_reply_check',
+    description: '检查所有回复监听，返回自上次以来新增的回复/评论（并推进游标）。只在你被问到时才需要调用。',
+    parameters: {
+      id: { type: 'string', description: '只检查这一条监听（可选）' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { id?: string }
+      try {
+        const results = await checkReplyWatches({
+          watches: deps.watches,
+          comments: deps.comments,
+          log: deps.log,
+          ...(input.id === undefined ? {} : { only: input.id.trim() }),
+        })
+        if (results.length === 0) return '没有需要检查的监听。'
+        const lines: string[] = []
+        for (const result of results) {
+          if (result.error !== undefined) {
+            lines.push('· ' + result.watch.id + ' 检查失败' + (result.removed === true ? '（已自动清理）' : '：' + result.error))
+            continue
+          }
+          if (result.items.length === 0) {
+            lines.push('· ' + result.watch.id + '（' + result.watch.bvid + '）没有新回复')
+            continue
+          }
+          lines.push('· ' + result.watch.id + '（' + result.watch.bvid + '）新增 ' + String(result.items.length) + ' 条：')
+          for (const item of result.items.slice(0, 10)) {
+            lines.push('   · ' + (item.author.name || '匿名') + '：' + item.message.replace(/\n+/g, ' ').slice(0, 120) + '（rpid=' + String(item.rpid) + '）')
+          }
+        }
+        return lines.join('\n')
+      } catch (error) {
+        return '检查失败：' + (error instanceof Error ? error.message : String(error))
+      }
+    },  }))
 }

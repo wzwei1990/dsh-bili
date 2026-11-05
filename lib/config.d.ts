@@ -7,6 +7,20 @@ export interface ConfigShape {
     sessdata: string;
     /** cookie 文件路径（留空=~/.dsh/dsh-bili/cookie.txt）；文件存在时优先于 sessdata */
     cookieFile: string;
+    /** 允许写操作（评论/点赞/投币/弹幕）；默认关闭 */
+    allowWrite: boolean;
+    /** 每小时最多几次写操作 */
+    writePerHour: number;
+    /** 命中风控后的冷却分钟数 */
+    writeCooldownMinutes: number;
+    /** 评论读取缓存（分钟，0=不缓存） */
+    commentCacheMinutes: number;
+    /** 回复监听最多登记几条 */
+    replyWatchMax: number;
+    /** 发完评论自动盯它（有人回复就能被 bili_reply_check 抓到） */
+    autoWatchOwnComments: boolean;
+    /** 监听保留多少天（0=永不过期） */
+    replyWatchDays: number;
     /** 单次 HTTP 超时（毫秒） */
     timeoutMs: number;
     /** 字幕正文最多返回多少字符（太长会撑爆上下文，超出截断并在文本里标注） */
@@ -35,6 +49,13 @@ export interface ConfigShape {
 export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
     cookieFile: z<string, string, "volatile-defined">;
+    allowWrite: z<boolean, boolean, "volatile-defined">;
+    writePerHour: z<number, number, "volatile-defined">;
+    writeCooldownMinutes: z<number, number, "volatile-defined">;
+    commentCacheMinutes: z<number, number, "volatile-defined">;
+    replyWatchMax: z<number, number, "volatile-defined">;
+    autoWatchOwnComments: z<boolean, boolean, "volatile-defined">;
+    replyWatchDays: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     storyboard: z<boolean, boolean, "volatile-defined">;
     storyboardFrames: z<number, number, "volatile-defined">;
@@ -48,6 +69,13 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
 }>>, Schemastery.ObjectT<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
     cookieFile: z<string, string, "volatile-defined">;
+    allowWrite: z<boolean, boolean, "volatile-defined">;
+    writePerHour: z<number, number, "volatile-defined">;
+    writeCooldownMinutes: z<number, number, "volatile-defined">;
+    commentCacheMinutes: z<number, number, "volatile-defined">;
+    replyWatchMax: z<number, number, "volatile-defined">;
+    autoWatchOwnComments: z<boolean, boolean, "volatile-defined">;
+    replyWatchDays: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     storyboard: z<boolean, boolean, "volatile-defined">;
     storyboardFrames: z<number, number, "volatile-defined">;

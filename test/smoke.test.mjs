@@ -184,3 +184,101 @@ test('从 profile 原始 YAML 抽 cookie：多行 plain scalar 能完整拼回',
   const real = readCookieFromProfiles()
   if (real !== undefined) assert.ok(real.cookie.length > 100, '真实 profile cookie 应完整')
 })
+test('回复监听：登记去重、取消、推进游标并持久化', async () => {
+  const { mkdtemp, rm, readFile } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { ReplyWatchStore } = await import('../lib/replywatch.js')
+  const dir = await mkdtemp(join(tmpdir(), 'bili-watch-'))
+  const file = join(dir, 'reply-watch.json')
+  const store = new ReplyWatchStore({ file })
+
+  const first = store.add({ bvid: 'BV1xx411c7mD', root: 123, lastSeenRpid: 100, note: '盯回复', max: 3 })
+  assert.equal(first.created, true)
+  const again = store.add({ bvid: 'BV1xx411c7mD', root: 123, max: 3 })
+  assert.equal(again.created, false, '同一目标不重复登记')
+  assert.equal(store.list().length, 1)
+
+  store.touch(first.watch.id, 200)
+  assert.equal(store.find(first.watch.id)?.lastSeenRpid, 200)
+  store.touch(first.watch.id, 150)
+  assert.equal(store.find(first.watch.id)?.lastSeenRpid, 200, '游标只前进不后退')
+
+  // 持久化：新实例能读到
+  const reloaded = new ReplyWatchStore({ file })
+  assert.equal(reloaded.list().length, 1)
+  assert.ok((await readFile(file, 'utf8')).includes('BV1xx411c7mD'))
+
+  // 上限
+  store.add({ bvid: 'BV1yy411c7mD', root: 0, max: 3 })
+  store.add({ bvid: 'BV1zz411c7mD', root: 0, max: 3 })
+  assert.throws(() => store.add({ bvid: 'BV1ww411c7mD', root: 0, max: 3 }), /上限/)
+
+  assert.equal(store.remove(first.watch.id), true)
+  assert.equal(store.remove('nope'), false)
+  await rm(dir, { recursive: true, force: true })
+})
+test('回复监听：到期自动清理、连续失败自动移除', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { ReplyWatchStore } = await import('../lib/replywatch.js')
+  const dir = await mkdtemp(join(tmpdir(), 'bili-watch2-'))
+
+  // keepDays=0 → 永不过期
+  const forever = new ReplyWatchStore({ file: join(dir, 'a.json'), keepDays: 0 })
+  const keep = forever.add({ bvid: 'BV1a', root: 1, max: 5 })
+  assert.equal(keep.watch.expiresAt, 0, '0 天=永不过期')
+
+  // keepDays=1 → 一天后过期
+  const store = new ReplyWatchStore({ file: join(dir, 'b.json'), keepDays: 1, maxFailures: 3 })
+  const w = store.add({ bvid: 'BV1b', root: 2, max: 5 })
+  assert.ok(w.watch.expiresAt > Date.now(), '应有过期时间')
+  const removed = store.prune(Date.now() + 2 * 86_400_000)
+  assert.deepEqual(removed, [w.watch.id])
+  assert.equal(store.list().length, 0, '过期后应被清掉')
+
+  // 连续失败 3 次 → 自动移除
+  const store2 = new ReplyWatchStore({ file: join(dir, 'c.json'), maxFailures: 3 })
+  const w2 = store2.add({ bvid: 'BV1c', root: 3, max: 5 })
+  assert.equal(store2.markFailure(w2.watch.id).removed, false)
+  assert.equal(store2.markFailure(w2.watch.id).removed, false)
+  const third = store2.markFailure(w2.watch.id)
+  assert.equal(third.removed, true, '第 3 次失败应清理')
+  assert.equal(store2.list().length, 0)
+
+  // 成功一次会重置计数
+  const store3 = new ReplyWatchStore({ file: join(dir, 'd.json'), maxFailures: 2 })
+  const w3 = store3.add({ bvid: 'BV1d', root: 4, max: 5 })
+  store3.markFailure(w3.watch.id)
+  store3.touch(w3.watch.id, 999)
+  assert.equal(store3.find(w3.watch.id)?.failures, 0, '成功后失败计数归零')
+  assert.equal(store3.markFailure(w3.watch.id).removed, false)
+
+  await rm(dir, { recursive: true, force: true })
+})
+test('监听：同一视频的"新评论"与"某条评论的回复"是两条独立监听，互不覆盖', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { ReplyWatchStore } = await import('../lib/replywatch.js')
+  const dir = await mkdtemp(join(tmpdir(), 'bili-watch3-'))
+  const store = new ReplyWatchStore({ file: join(dir, 'w.json'), keepDays: 7, maxFailures: 3 })
+
+  // 同一个视频：root=0（盯新评论）与 root=rpid（盯某条评论的回复）应同时存在
+  const whole = store.add({ bvid: 'BV1same', root: 0, lastSeenRpid: 100, note: '视频新评论', max: 10 })
+  const one = store.add({ bvid: 'BV1same', root: 555, lastSeenRpid: 0, note: '某条评论的回复', max: 10 })
+  assert.equal(store.list().length, 2, '两条监听都要保留')
+
+  // 各自推进游标互不影响
+  store.touch(whole.watch.id, 300)
+  store.touch(one.watch.id, 900)
+  assert.equal(store.find(whole.watch.id)?.lastSeenRpid, 300)
+  assert.equal(store.find(one.watch.id)?.lastSeenRpid, 900)
+
+  // 取消其中一条，另一条还在
+  assert.equal(store.remove(one.watch.id), true)
+  assert.equal(store.list().length, 1)
+  assert.equal(store.list()[0].root, 0)
+  await rm(dir, { recursive: true, force: true })
+})
