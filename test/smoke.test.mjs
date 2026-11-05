@@ -152,3 +152,35 @@ test('轮询：只把比基线新的内容写进 outbox，失败会退避', asyn
 
   await rm(dir, { recursive: true, force: true })
 })
+test('从 profile 原始 YAML 抽 cookie：多行 plain scalar 能完整拼回', async () => {
+  const { extractSessdataFromYaml, readCookieFromProfiles } = await import('../lib/profilecookie.js')
+  const yaml = [
+    '- id: dsh-napcat',
+    '  name: dsh-napcat',
+    '  config:',
+    '    triggerKeywords:',
+    '      - 小灯',
+    '- id: dsh-bili',
+    '  name: dsh-bili',
+    '  config:',
+    '    sessdata: buvid3=AAA-BBB;',
+    '      b_nut=123; SESSDATA=xyz%2C222%2Cqq;',
+    '      DedeUserID=42;',
+    '    timeoutMs: 15000',
+    '    logLevel: info',
+    '- id: dsh-game',
+  ].join('\n')
+  const got = extractSessdataFromYaml(yaml)
+  assert.equal(got, 'buvid3=AAA-BBB; b_nut=123; SESSDATA=xyz%2C222%2Cqq; DedeUserID=42;')
+
+  // 单行值也能取
+  const single = extractSessdataFromYaml(['- id: dsh-bili', '  config:', '    sessdata: abcdef', '    timeoutMs: 1'].join('\n'))
+  assert.equal(single, 'abcdef')
+
+  // 没有该插件块 → 空
+  assert.equal(extractSessdataFromYaml('- id: other\n  config: {}'), '')
+
+  // 本机真实 profile（存在时）应能读到完整 cookie
+  const real = readCookieFromProfiles()
+  if (real !== undefined) assert.ok(real.cookie.length > 100, '真实 profile cookie 应完整')
+})

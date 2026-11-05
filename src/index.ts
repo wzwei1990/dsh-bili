@@ -20,6 +20,7 @@ import { BiliClient } from './bili.js'
 import { SearchClient } from './search.js'
 import { StoryboardService } from './services.js'
 import { registerTools } from './tools.js'
+import { MIN_REAL_COOKIE_LENGTH, readCookieFromProfiles } from './profilecookie.js'
 
 export { Config }
 
@@ -68,9 +69,25 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       log('warn', '写 cookie 文件失败（继续用配置里的值）: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
-  if (fileCookie === '' && configCookie !== '' && configCookie.length < 100) {
+  // 宿主传过来的多行值可能被截断（线上实测只拿到 15/24 字符）：直接读原始配置文件自愈
+  if (configCookie.length < MIN_REAL_COOKIE_LENGTH && fileCookie === '') {
+    const fromProfile = readCookieFromProfiles()
+    if (fromProfile !== undefined) {
+      log('info', '宿主传入的 SESSDATA 只有 ' + String(configCookie.length) + ' 个字符（被截断），已从 '
+        + fromProfile.file + ' 直接读到完整值（' + String(fromProfile.cookie.length) + ' 字符）')
+      try {
+        mkdirSync(dirname(cookieFile), { recursive: true })
+        writeFileSync(cookieFile, fromProfile.cookie + '\n', 'utf8')
+        fileCookie = fromProfile.cookie
+        log('info', '已自动保存 cookie 到 ' + cookieFile)
+      } catch (error) {
+        log('warn', '自动保存 cookie 文件失败: ' + (error instanceof Error ? error.message : String(error)))
+      }
+    }
+  }
+  if (fileCookie === '' && configCookie !== '' && configCookie.length < MIN_REAL_COOKIE_LENGTH) {
     log('warn', '配置里的 SESSDATA 只有 ' + String(configCookie.length) + ' 个字符，明显被截断了（正常整段 cookie 几百字符）。'
-      + '请把整段 cookie 存成文件：' + cookieFile)
+      + '插件会尝试直接读 profile 配置文件自愈；若仍失败，请检查 ' + cookieFile)
   }
   let cookieValue = fileCookie !== '' ? fileCookie : configCookie
   let cookieSource = fileCookie !== '' ? cookieFile : 'config'

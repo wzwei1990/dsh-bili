@@ -1,6 +1,6 @@
 {
   "id": "dsh-bili",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "main": "./lib/index.js",
   "description": "Bilibili capability for DeepSeek Harness: resolve b23/BV links, read subtitles, hand video content to the model. Roadmap: browse, share cards, live danmaku.",
   "engines": {
