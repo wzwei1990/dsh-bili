@@ -9,6 +9,10 @@
  * - 不依赖任何 IM 插件；渠道按需消费 `dshBili` 服务。
  * - 网络失败、无字幕、接口风控都返回结构化错误，不抛异常炸宿主。
  */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+
 import type { Context } from '@deepseek-ai/cordis'
 
 import { Config, resolveConfig, type ConfigShape } from './config.js'
@@ -37,9 +41,40 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     else console.log(line)
   }
 
+  // cookie 来源：文件优先（配置文件里的多行值可能被宿主截断）
+  const dshHome = process.env.DSH_HOME
+  const cookieFile = config.cookieFile !== ''
+    ? config.cookieFile
+    : join(dshHome !== undefined && dshHome !== '' ? dshHome : join(homedir(), '.dsh'), 'dsh-bili', 'cookie.txt')
+  // 读取 cookie：文件优先；配置里的值只要够长就顺手同步进文件（"每次改自动保存一份"）
+  const configCookie = config.sessdata.trim()
+  let fileCookie = ''
+  if (existsSync(cookieFile)) {
+    try {
+      fileCookie = readFileSync(cookieFile, 'utf8').trim()
+    } catch {
+      log('warn', '读 cookie 文件失败：' + cookieFile)
+    }
+  }
+  // 够长才算"像真的 cookie"（整段通常几百字符；只填 SESSDATA 值也 >100）
+  const looksReal = (value: string): boolean => value.length >= 100
+  if (looksReal(configCookie) && configCookie !== fileCookie) {
+    try {
+      mkdirSync(dirname(cookieFile), { recursive: true })
+      writeFileSync(cookieFile, configCookie + '\n', 'utf8')
+      fileCookie = configCookie
+      log('info', '已把配置里的 cookie 自动保存到 ' + cookieFile + '（长度 ' + String(configCookie.length) + '）')
+    } catch (error) {
+      log('warn', '写 cookie 文件失败（继续用配置里的值）: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+  let cookieValue = fileCookie !== '' ? fileCookie : configCookie
+  let cookieSource = fileCookie !== '' ? cookieFile : 'config'
+  log('info', 'cookie 来源=' + cookieSource + '，原始长度=' + String(cookieValue.length))
+
   const client = new BiliClient({
     // 交给 BiliClient.normalizeCookie 判断是「只填 SESSDATA 值」还是「整段 cookie」
-    cookie: config.sessdata,
+    cookie: cookieValue,
     timeoutMs: config.timeoutMs,
     cacheTtlMs: Math.max(0, config.cacheTtlMinutes) * 60_000,
     log,
@@ -85,6 +120,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     subtitleMaxChars: config.subtitleMaxChars,
     storyboard,
     search,
+    cookieInfo: () => ({ source: cookieSource, length: cookieValue.length, normalized: client.cookieValue.length }),
     log,
   })
 
@@ -100,6 +136,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       /** 分镜：B 站链接 / 其它链接（yt-dlp）/ 本地文件都行 */
       storyboard: (input: string) => storyboard.build(input),
       depsStatus: () => storyboard.depsStatus(),
+      cookieInfo: () => ({ source: cookieSource, length: cookieValue.length, normalized: client.cookieValue.length }),
       /** 搜索 */
       search: (query: string, options?: { page?: number; order?: string; duration?: number }) =>
         search.search(query, options as never),

@@ -5,6 +5,8 @@ import z from '@deepseek-ai/schemastery';
 export interface ConfigShape {
     /** B 站登录 Cookie 里的 SESSDATA（可选：字幕/更高频接口需要，公开视频信息不需要） */
     sessdata: string;
+    /** cookie 文件路径（留空=~/.dsh/dsh-bili/cookie.txt）；文件存在时优先于 sessdata */
+    cookieFile: string;
     /** 单次 HTTP 超时（毫秒） */
     timeoutMs: number;
     /** 字幕正文最多返回多少字符（太长会撑爆上下文，超出截断并在文本里标注） */
@@ -32,6 +34,7 @@ export interface ConfigShape {
 }
 export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
+    cookieFile: z<string, string, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     storyboard: z<boolean, boolean, "volatile-defined">;
     storyboardFrames: z<number, number, "volatile-defined">;
@@ -44,6 +47,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
+    cookieFile: z<string, string, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     storyboard: z<boolean, boolean, "volatile-defined">;
     storyboardFrames: z<number, number, "volatile-defined">;

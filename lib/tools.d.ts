@@ -11,6 +11,12 @@ export interface ToolDeps {
     subtitleMaxChars: number;
     storyboard: StoryboardService;
     search: SearchClient;
+    /** cookie 来源诊断（来源路径 + 原始/规整后长度） */
+    cookieInfo?: () => {
+        source: string;
+        length: number;
+        normalized: number;
+    };
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
 /** 把视频信息 + 字幕拼成给模型读的文本。 */

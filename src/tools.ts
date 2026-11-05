@@ -15,6 +15,8 @@ export interface ToolDeps {
   subtitleMaxChars: number
   storyboard: StoryboardService
   search: SearchClient
+  /** cookie 来源诊断（来源路径 + 原始/规整后长度） */
+  cookieInfo?: () => { source: string; length: number; normalized: number }
   log: (level: 'debug' | 'info' | 'warn', message: string) => void
 }
 
@@ -171,6 +173,13 @@ export function registerTools(ctx: Context, client: BiliClient, deps: ToolDeps):
         } else if (login.isLogin !== true && client.cookieShape !== undefined) {
           lines.push('B站登录：❌ SESSDATA 无效或已过期（' + (login.message ?? '未知原因') + '）')
           lines.push('  cookie 形态：' + client.cookieShape)
+          const info = deps.cookieInfo?.()
+          if (info !== undefined) {
+            lines.push('  cookie 来源：' + info.source + '（原始长度 ' + String(info.length) + '，规整后 ' + String(info.normalized) + '）')
+            if (info.length > 0 && info.length < 100) {
+              lines.push('  提示：配置里传进来的 cookie 太短，可能被 YAML 多行值截断了 → 把整段 cookie 存成文件 ~/.dsh/dsh-bili/cookie.txt 即可')
+            }
+          }
         } else if (login.isLogin) {
           lines.push('B站登录：✅ 有效（' + (login.uname ?? '?') + '，uid ' + String(login.mid ?? '?') + '，Lv' + String(login.level ?? '?' ) + '）')
         } else {
