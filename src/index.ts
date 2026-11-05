@@ -103,6 +103,8 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       /** 搜索 */
       search: (query: string, options?: { page?: number; order?: string; duration?: number }) =>
         search.search(query, options as never),
+      /** 按名字搜用户（未登录也能用） */
+      searchUser: (query: string) => search.searchUser(query),
       /** 查 UP（名字或 mid） */
       resolveUp: (target: string) => search.resolveUp(target),
       /** UP 投稿 */

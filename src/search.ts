@@ -116,6 +116,17 @@ export function parseClock(text: string): number {
   return 0
 }
 
+/** 把风控类错误翻译成能行动的提示 */
+function explainRisk(message: string): string {
+  if (/-352|风控/.test(message)) {
+    return message + ' —— B站空间接口风控较严：配置有效 SESSDATA 后基本可绕过（搜索接口不受影响）'
+  }
+  if (/412/.test(message)) {
+    return message + ' —— 请求被风控，请配置有效 SESSDATA 或稍后重试'
+  }
+  return message
+}
+
 export class SearchClient {
   private readonly options: SearchClientOptions
 
@@ -233,7 +244,7 @@ export class SearchClient {
       await this.signed('/x/space/wbi/acc/info', { mid }),
       this.httpOptions(),
     )
-    if (json.code !== 0) throw new HttpError('读取 UP 信息失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）', undefined, json.code)
+    if (json.code !== 0) throw new HttpError(explainRisk('读取 UP 信息失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
     const data = json.data ?? {}
     // acc/info 不返回粉丝数，单独查 relation/stat（不需要 wbi）
     let fans = Number((data.fans as number | undefined) ?? 0)
@@ -270,7 +281,7 @@ export class SearchClient {
       message?: string
       data?: { list?: { vlist?: Array<Record<string, unknown>> } }
     }>(await this.signed('/x/space/wbi/arc/search', { mid, pn: Math.max(1, page), ps: Math.max(1, Math.min(50, pageSize)), order: 'pubdate' }), this.httpOptions())
-    if (json.code !== 0) throw new HttpError('读取投稿失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）', undefined, json.code)
+    if (json.code !== 0) throw new HttpError(explainRisk('读取投稿失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
     const list = json.data?.list?.vlist ?? []
     const videos: UpVideo[] = list.map(item => {
       const bvid = String(item.bvid ?? '')
@@ -297,7 +308,7 @@ export class SearchClient {
       message?: string
       data?: { items?: Array<Record<string, unknown>> }
     }>(await this.signed('/x/polymer/web-dynamic/v1/feed/space', { host_mid: mid, offset: '' }), this.httpOptions())
-    if (json.code !== 0) throw new HttpError('读取动态失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）', undefined, json.code)
+    if (json.code !== 0) throw new HttpError(explainRisk('读取动态失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
     const items = json.data?.items ?? []
     const dynamics: UpDynamic[] = []
     for (const item of items) {

@@ -407,7 +407,8 @@ export class BiliClient {
     if (!(await this.ensureVisitorCookie())) return undefined
     try {
       const json = await getJson<BiliResponse<NavData>>(API + '/x/web-interface/nav', this.httpOptions())
-      if (json.code !== 0) return undefined
+      // 未登录时 nav 返回 code=-101，但 data.wbi_img 仍然存在（实测），
+      // 所以这里只看字段，不看 code —— 否则没配 SESSDATA 就永远搜索不了。
       const imgKey = json.data?.wbi_img?.img_url ?? ''
       const subKey = json.data?.wbi_img?.sub_url ?? ''
       if (imgKey === '' || subKey === '') return undefined
