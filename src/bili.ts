@@ -136,7 +136,7 @@ export class BiliClient {
   private readonly cacheDir: string
   private readonly log: (level: 'debug' | 'info' | 'warn', message: string) => void
   private readonly memory = new Map<string, { at: number; value: unknown }>()
-  private wbiKeys: { imgKey: string; subKey: string; at: number } | undefined
+  private wbiKeyCache: { imgKey: string; subKey: string; at: number } | undefined
 
   constructor(options: BiliClientOptions = {}) {
     this.cookie = normalizeCookie(options.cookie ?? '')
@@ -384,6 +384,16 @@ export class BiliClient {
     }
   }
 
+  /** 规整后的 cookie 字符串（已压平换行），供搜索等模块复用。 */
+  get cookieValue(): string {
+    return this.cookie
+  }
+
+  /** 供搜索模块复用的 WBI 密钥（同一套游客 cookie 与缓存）。 */
+  async wbiKeys(): Promise<{ imgKey: string; subKey: string } | undefined> {
+    return this.ensureWbiKeys()
+  }
+
   /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */
   /**
    * 拿 WBI 密钥。未登录时 nav 会返回 -101，所以先补一个游客 cookie（buvid3）再试；
@@ -391,8 +401,8 @@ export class BiliClient {
    */
   private async ensureWbiKeys(): Promise<{ imgKey: string; subKey: string } | undefined> {
     const now = Date.now()
-    if (this.wbiKeys !== undefined && now - this.wbiKeys.at < 2 * 60 * 60_000) {
-      return { imgKey: this.wbiKeys.imgKey, subKey: this.wbiKeys.subKey }
+    if (this.wbiKeyCache !== undefined && now - this.wbiKeyCache.at < 2 * 60 * 60_000) {
+      return { imgKey: this.wbiKeyCache.imgKey, subKey: this.wbiKeyCache.subKey }
     }
     if (!(await this.ensureVisitorCookie())) return undefined
     try {
@@ -401,7 +411,7 @@ export class BiliClient {
       const imgKey = json.data?.wbi_img?.img_url ?? ''
       const subKey = json.data?.wbi_img?.sub_url ?? ''
       if (imgKey === '' || subKey === '') return undefined
-      this.wbiKeys = { imgKey, subKey, at: now }
+      this.wbiKeyCache = { imgKey, subKey, at: now }
       return { imgKey, subKey }
     } catch (error) {
       this.log('debug', 'WBI 密钥获取失败（退回老接口）: ' + (error instanceof Error ? error.message : String(error)))

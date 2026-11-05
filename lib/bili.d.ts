@@ -78,7 +78,7 @@ export declare class BiliClient {
     private readonly cacheDir;
     private readonly log;
     private readonly memory;
-    private wbiKeys;
+    private wbiKeyCache;
     constructor(options?: BiliClientOptions);
     private httpOptions;
     /** 解链接 → 统一成 bvid（b23 短链会先跟随跳转）。 */
@@ -143,6 +143,13 @@ export declare class BiliClient {
         level?: number;
         message?: string;
     }>;
+    /** 规整后的 cookie 字符串（已压平换行），供搜索等模块复用。 */
+    get cookieValue(): string;
+    /** 供搜索模块复用的 WBI 密钥（同一套游客 cookie 与缓存）。 */
+    wbiKeys(): Promise<{
+        imgKey: string;
+        subKey: string;
+    } | undefined>;
     /** WBI 密钥对（缓存 2 小时；nav 接口未登录也返回密钥）。 */
     /**
      * 拿 WBI 密钥。未登录时 nav 会返回 -101，所以先补一个游客 cookie（buvid3）再试；

@@ -34,6 +34,9 @@
         { key: 'subtitleMaxChars', label: '字幕最多返回多少字', kind: 'number', hint: '默认 6000' },
         { key: 'cacheTtlMinutes', label: '页面/字幕缓存（分钟）', kind: 'number', hint: '默认 1440' },
 
+        { section: '搜索' },
+        { key: 'searchCacheMinutes', label: '搜索/UP 结果缓存（分钟）', kind: 'number', hint: '默认 5，减少接口压力' },
+
         { section: '画面分镜' },
         {
           key: 'storyboard',

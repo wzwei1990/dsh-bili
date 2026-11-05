@@ -114,3 +114,41 @@ test('cookie 规整：只填 SESSDATA 值 / 整段多行 cookie 都能用', asyn
   // 空值
   assert.equal(normalizeCookie('   '), '')
 })
+test('搜索：时长解析与链接拼装', async () => {
+  const { parseClock } = await import('../lib/search.js')
+  assert.equal(parseClock('12:34'), 754)
+  assert.equal(parseClock('1:02:03'), 3723)
+  assert.equal(parseClock('--'), 0)
+})
+
+
+test('轮询：只把比基线新的内容写进 outbox，失败会退避', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { SubscriptionStore, pollSubscription } = await import('../lib/subscriptions.js')
+  const dir = await mkdtemp(join(tmpdir(), 'bili-poll-test-'))
+  const store = new SubscriptionStore({ dir })
+  await store.load()
+  const { subscription } = await store.upsert({ mid: 9, name: 'UP乙', types: ['video'], groups: [], lastSeenPubdate: 100 })
+
+  const fakeSearch = {
+    upVideos: async () => ([
+      { bvid: 'BVnew', title: '新投稿', pubdate: 200, durationSec: 600, play: 1, url: 'https://v/BVnew' },
+      { bvid: 'BVold', title: '旧投稿', pubdate: 50, durationSec: 60, play: 1, url: 'https://v/BVold' },
+    ]),
+    upDynamics: async () => [],
+  }
+  const result = await pollSubscription(subscription, { store, search: fakeSearch, intervalMinutes: 10 })
+  assert.equal(result.added, 1)
+  assert.equal(store.pending(undefined, 5)[0].title, '新投稿')
+
+  // 失败：nextCheckAt 往后推，failures+1
+  const broken = { upVideos: async () => { throw new Error('412') }, upDynamics: async () => [] }
+  const failed = await pollSubscription(store.find(subscription.id), { store, search: broken, intervalMinutes: 10 })
+  assert.ok(failed.error !== undefined)
+  assert.equal(failed.subscription.failures, 1)
+  assert.ok(failed.subscription.nextCheckAt > Date.now())
+
+  await rm(dir, { recursive: true, force: true })
+})

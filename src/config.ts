@@ -9,6 +9,12 @@ export interface ConfigShape {
   /** 单次 HTTP 超时（毫秒） */
   timeoutMs: number
   /** 字幕正文最多返回多少字符（太长会撑爆上下文，超出截断并在文本里标注） */
+  /** 搜索/UP 结果缓存（分钟） */
+  searchCacheMinutes: number
+  /** 订阅轮询总开关 */
+  /** 轮询间隔（分钟，最小 5） */
+  /** 订阅数量上限 */
+  /** 默认订阅类型（逗号分隔：video,dynamic） */
   subtitleMaxChars: number
   /** 是否抽帧做分镜图（默认开；超长视频会跳过） */
   storyboard: boolean
@@ -42,6 +48,8 @@ export const Config = z.object({
     .description('ffmpeg 路径（留空=自动探测 PATH/常见位置）').volatile(),
   ytdlpPath: z.string().default('')
     .description('yt-dlp 路径（留空=自动探测；只用于非 B 站链接）').volatile(),
+  searchCacheMinutes: z.natural().default(5)
+    .description('搜索/UP 结果缓存（分钟）').volatile(),
   subtitleMaxChars: z.natural().default(6000)
     .description('字幕正文最多返回多少字符（超出截断）').volatile(),
   cacheTtlMinutes: z.natural().default(1440)
@@ -58,6 +66,7 @@ export const DEFAULTS: ConfigShape = {
   maxStoryboardMinutes: 30,
   ffmpegPath: '',
   ytdlpPath: '',
+  searchCacheMinutes: 5,
   subtitleMaxChars: 6000,
   cacheTtlMinutes: 1440,
   logLevel: 'info',
