@@ -333,10 +333,14 @@ export class BiliClient {
     return result
   }
 
-  /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
-  private streamHeaders(): Record<string, string> {
+  /**
+   * 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。
+   * Referer 用**视频页**而不是首页：CDN 会对比，首页 Referer 偶尔被 403。
+   */
+  private streamHeaders(pageUrl = 'https://www.bilibili.com/'): Record<string, string> {
     const headers: Record<string, string> = {
-      Referer: 'https://www.bilibili.com/',
+      Referer: pageUrl,
+      Origin: 'https://www.bilibili.com',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
     }
     if (this.cookie.trim() !== '') headers.Cookie = this.cookie

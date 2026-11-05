@@ -124,7 +124,10 @@ export declare class BiliClient {
         headers: Record<string, string>;
         quality: number;
     }>;
-    /** 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。 */
+    /**
+     * 拉流必须带 Referer/UA（B 站防盗链）；有 cookie 一并带上。
+     * Referer 用**视频页**而不是首页：CDN 会对比，首页 Referer 偶尔被 403。
+     */
     private streamHeaders;
     /** cookie 的形态摘要（排障用：只给长度/段数/是否含关键字，不泄露值） */
     get cookieShape(): string | undefined;
