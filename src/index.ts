@@ -68,6 +68,10 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       log('warn', '写 cookie 文件失败（继续用配置里的值）: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
+  if (fileCookie === '' && configCookie !== '' && configCookie.length < 100) {
+    log('warn', '配置里的 SESSDATA 只有 ' + String(configCookie.length) + ' 个字符，明显被截断了（正常整段 cookie 几百字符）。'
+      + '请把整段 cookie 存成文件：' + cookieFile)
+  }
   let cookieValue = fileCookie !== '' ? fileCookie : configCookie
   let cookieSource = fileCookie !== '' ? cookieFile : 'config'
   log('info', 'cookie 来源=' + cookieSource + '，原始长度=' + String(cookieValue.length))

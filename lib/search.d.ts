@@ -67,6 +67,8 @@ export interface SearchClientOptions {
 }
 /** "12:34" / "1:02:03" → 秒 */
 export declare function parseClock(text: string): number;
+export declare const SPACE_COOLDOWN_MS: number;
+export declare function spaceRiskRemainingMs(now?: number): number;
 export declare class SearchClient {
     private readonly options;
     constructor(options: SearchClientOptions);

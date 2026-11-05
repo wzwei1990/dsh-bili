@@ -116,6 +116,26 @@ export function parseClock(text: string): number {
   return 0
 }
 
+/**
+ * 空间接口（acc/info、arc/search、feed/space）风控比搜索严得多：
+ * 412 / -352 / -799 都表示"请求过于频繁"，同一 IP 上要冷却一段时间。
+ * 这里做一个进程级冷却，避免订阅轮询继续撞墙。
+ */
+let spaceRiskUntil = 0
+export const SPACE_COOLDOWN_MS = 10 * 60_000
+
+export function spaceRiskRemainingMs(now = Date.now()): number {
+  return Math.max(0, spaceRiskUntil - now)
+}
+
+function markSpaceRisk(): void {
+  spaceRiskUntil = Math.max(spaceRiskUntil, Date.now() + SPACE_COOLDOWN_MS)
+}
+
+function isRiskCode(code: number, message: string): boolean {
+  return code === 412 || code === -352 || code === -799 || /频繁|风控/.test(message)
+}
+
 /** 把风控类错误翻译成能行动的提示 */
 function explainRisk(message: string): string {
   if (/-352|风控/.test(message)) {
@@ -244,7 +264,7 @@ export class SearchClient {
       await this.signed('/x/space/wbi/acc/info', { mid }),
       this.httpOptions(),
     )
-    if (json.code !== 0) throw new HttpError(explainRisk('读取 UP 信息失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
+    if (json.code !== 0) { if (isRiskCode(json.code, json.message ?? '')) markSpaceRisk(); throw new HttpError(explainRisk('读取 UP 信息失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code) }
     const data = json.data ?? {}
     // acc/info 不返回粉丝数，单独查 relation/stat（不需要 wbi）
     let fans = Number((data.fans as number | undefined) ?? 0)
@@ -281,7 +301,7 @@ export class SearchClient {
       message?: string
       data?: { list?: { vlist?: Array<Record<string, unknown>> } }
     }>(await this.signed('/x/space/wbi/arc/search', { mid, pn: Math.max(1, page), ps: Math.max(1, Math.min(50, pageSize)), order: 'pubdate' }), this.httpOptions())
-    if (json.code !== 0) throw new HttpError(explainRisk('读取投稿失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
+    if (json.code !== 0) { if (isRiskCode(json.code, json.message ?? '')) markSpaceRisk(); throw new HttpError(explainRisk('读取投稿失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code) }
     const list = json.data?.list?.vlist ?? []
     const videos: UpVideo[] = list.map(item => {
       const bvid = String(item.bvid ?? '')
@@ -308,7 +328,7 @@ export class SearchClient {
       message?: string
       data?: { items?: Array<Record<string, unknown>> }
     }>(await this.signed('/x/polymer/web-dynamic/v1/feed/space', { host_mid: mid, offset: '' }), this.httpOptions())
-    if (json.code !== 0) throw new HttpError(explainRisk('读取动态失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code)
+    if (json.code !== 0) { if (isRiskCode(json.code, json.message ?? '')) markSpaceRisk(); throw new HttpError(explainRisk('读取动态失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）'), undefined, json.code) }
     const items = json.data?.items ?? []
     const dynamics: UpDynamic[] = []
     for (const item of items) {

@@ -25,7 +25,7 @@
         {
           key: 'sessdata',
           label: 'SESSDATA（B 站登录 cookie，字幕需要；留空=未登录）',
-          kind: 'password',
+          kind: 'textarea',
           hint: '浏览器登录 bilibili.com → F12 → Application → Cookies → SESSDATA，复制 Value。约半年过期。',
         },
         { key: 'timeoutMs', label: '请求超时（毫秒）', kind: 'number', hint: '默认 15000' },
@@ -127,6 +127,13 @@
           control = react.createElement('input', {
             id, type: 'number', style: style.input, value: value == null ? '' : String(value),
             onChange: (event) => onChange(field.key, event.target.value === '' ? undefined : Number(event.target.value)),
+          })
+        } else if (field.kind === 'textarea') {
+          control = react.createElement('textarea', {
+            id, style: Object.assign({}, style.input, { minHeight: '96px', resize: 'vertical', fontFamily: 'monospace' }),
+            rows: 4,
+            placeholder: field.placeholder, value: value == null ? '' : String(value),
+            onChange: (event) => onChange(field.key, event.target.value),
           })
         } else {
           control = react.createElement('input', {
