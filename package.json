@@ -1,6 +1,6 @@
 {
   "name": "dsh-bili",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Bilibili for DeepSeek Harness: resolve b23/BV links, read subtitles, hand the content to the model (roadmap: browse, share cards, live danmaku)",
   "type": "module",
   "main": "lib/index.js",
@@ -71,6 +71,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "typecheck:latest": "node scripts/check-latest-host.mjs"
   }
 }
