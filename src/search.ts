@@ -154,6 +154,11 @@ export class SearchClient {
     this.options = options
   }
 
+  /** 运行时替换 cookie（设置页保存后热更新用）。 */
+  setCookie(raw: string): void {
+    this.options.cookie = raw
+  }
+
   private httpOptions(): { cookie?: string; timeoutMs?: number } {
     const out: { cookie?: string; timeoutMs?: number } = {}
     if (this.options.cookie !== undefined && this.options.cookie !== '') out.cookie = this.options.cookie

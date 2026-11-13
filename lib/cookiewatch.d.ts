@@ -4,6 +4,12 @@ export interface WatchOptions {
     /** 轮询间隔，默认 5000ms */
     intervalMs?: number;
     log: (level: 'info' | 'warn', message: string) => void;
+    /**
+     * 文件写入成功后回调新 cookie。
+     * 只写文件不够：运行中的 BiliClient / SearchClient / CommentClient 都各持一份 cookie，
+     * 不热更新的话设置页改完仍然用旧值（实测 doctor 仍报"未登录"），必须重启才生效。
+     */
+    onCookie?: (cookie: string) => void;
 }
 /**
  * 启动监听，返回停止函数（挂到 ctx.effect 的 disposer）。

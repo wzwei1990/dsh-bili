@@ -62,6 +62,8 @@ export interface ReadOptions {
     pageSize?: number;
 }
 export declare class CommentClient {
+    /** 运行时替换 cookie（设置页保存后热更新用）。 */
+    setCookie(raw: string): void;
     private readonly options;
     private readonly writes;
     private cooldownUntil;

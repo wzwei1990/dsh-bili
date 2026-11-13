@@ -146,6 +146,14 @@ export class BiliClient {
     this.log = options.log ?? (() => undefined)
   }
 
+  /** 运行时替换 cookie（设置页保存后热更新用，不必重启 DSH）。 */
+  setCookie(raw: string): void {
+    this.cookie = normalizeCookie(raw)
+    // 密钥与登录态都跟 cookie 绑，换 cookie 后必须让缓存失效
+    this.wbiKeyCache = undefined
+    this.buvidReady = false
+  }
+
   private httpOptions(): HttpOptions {
     return { cookie: this.cookie, timeoutMs: this.timeoutMs }
   }

@@ -72,6 +72,8 @@ export declare function spaceRiskRemainingMs(now?: number): number;
 export declare class SearchClient {
     private readonly options;
     constructor(options: SearchClientOptions);
+    /** 运行时替换 cookie（设置页保存后热更新用）。 */
+    setCookie(raw: string): void;
     private httpOptions;
     private cacheGet;
     private cacheSet;

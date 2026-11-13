@@ -80,6 +80,8 @@ export declare class BiliClient {
     private readonly memory;
     private wbiKeyCache;
     constructor(options?: BiliClientOptions);
+    /** 运行时替换 cookie（设置页保存后热更新用，不必重启 DSH）。 */
+    setCookie(raw: string): void;
     private httpOptions;
     /** 解链接 → 统一成 bvid（b23 短链会先跟随跳转）。 */
     normalize(input: string): Promise<{

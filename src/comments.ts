@@ -101,6 +101,11 @@ function explainCommentError(code: number, message: string): string {
 }
 
 export class CommentClient {
+  /** 运行时替换 cookie（设置页保存后热更新用）。 */
+  setCookie(raw: string): void {
+    this.options.cookie = raw
+  }
+
   private readonly options: CommentClientOptions
   private readonly writes: number[] = []
   private cooldownUntil = 0

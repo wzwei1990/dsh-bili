@@ -18,6 +18,12 @@ export interface WatchOptions {
   /** 轮询间隔，默认 5000ms */
   intervalMs?: number
   log: (level: 'info' | 'warn', message: string) => void
+  /**
+   * 文件写入成功后回调新 cookie。
+   * 只写文件不够：运行中的 BiliClient / SearchClient / CommentClient 都各持一份 cookie，
+   * 不热更新的话设置页改完仍然用旧值（实测 doctor 仍报"未登录"），必须重启才生效。
+   */
+  onCookie?: (cookie: string) => void
 }
 
 interface Stamp {
@@ -90,6 +96,13 @@ export function watchProfileCookie(options: WatchOptions): () => void {
         writeFileSync(cookieFile, cookie + '\n', 'utf8')
         lastWritten = cookie
         log('info', '设置页 cookie 已变化 → 已同步到 ' + cookieFile + '（长度 ' + String(cookie.length) + '）')
+        // 关键：同时刷新运行中的客户端，否则设置页改完仍用旧 cookie，必须重启才生效
+        try {
+          options.onCookie?.(cookie)
+          log('info', '已将新 cookie 热更新到运行中的客户端（无需重启）')
+        } catch (error) {
+          log('warn', '热更新客户端 cookie 失败: ' + (error instanceof Error ? error.message : String(error)))
+        }
       } catch (error) {
         log('warn', '同步 cookie 文件失败: ' + (error instanceof Error ? error.message : String(error)))
       }
