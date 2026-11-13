@@ -24,6 +24,7 @@ import { checkReplyWatches } from './replycheck.js'
 import { StoryboardService } from './services.js'
 import { registerTools } from './tools.js'
 import { MIN_REAL_COOKIE_LENGTH, readCookieFromProfiles } from './profilecookie.js'
+import { watchProfileCookie } from './cookiewatch.js'
 
 export { Config }
 
@@ -95,6 +96,10 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
   let cookieValue = fileCookie !== '' ? fileCookie : configCookie
   let cookieSource = fileCookie !== '' ? cookieFile : 'config'
   log('info', 'cookie 来源=' + cookieSource + '，原始长度=' + String(cookieValue.length))
+
+  // 设置页保存后"立即"同步：宿主改配置不会重跑 apply，所以低频轮询 profile 配置，
+  // 只在 mtime/size 变化时重新解析并写 cookie.txt（5s 内生效，不需要重启 DSH）。
+  ctx.effect(() => watchProfileCookie({ cookieFile, log }))
 
   const client = new BiliClient({
     // 交给 BiliClient.normalizeCookie 判断是「只填 SESSDATA 值」还是「整段 cookie」
