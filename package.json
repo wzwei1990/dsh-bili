@@ -1,6 +1,6 @@
 {
   "name": "dsh-bili",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Bilibili for DeepSeek Harness: resolve b23/BV links, read subtitles, hand the content to the model (roadmap: browse, share cards, live danmaku)",
   "type": "module",
   "main": "lib/index.js",
@@ -40,7 +40,7 @@
     "url": "https://github.com/wzwei1990/dsh-bili/issues"
   },
   "engines": {
-    "dsh": ">=0.2.1-0 <0.3.0-0",
+    "dsh": ">=0.2.2-rc.0 <0.3.0-0",
     "node": ">=22"
   },
   "dsh": {
@@ -57,7 +57,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-tools": ">=0.2.1-0 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.0 <0.3.0-0",
     "@deepseek-ai/schemastery": "^3.18.0"
   },
   "devDependencies": {
