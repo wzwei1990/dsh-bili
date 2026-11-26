@@ -315,13 +315,16 @@ export async function pollSubscription(subscription: Subscription, options: Poll
   const bumped: Subscription = { ...subscription, groups: [...subscription.groups], types: [...subscription.types], recentIds: [...subscription.recentIds] }
   const videos: UpVideo[] = []
   const dynamics: UpDynamic[] = []
+  // 本轮基线：两类内容都按它比较，处理完再统一推进，避免"视频先更新 lastSeen 把同轮动态挤掉"
+  const baseline = bumped.lastSeenPubdate
+  let newestPubdate = baseline
   const fresh: Array<Omit<OutboxItem, 'deliveredTo' | 'addedAt'>> = []
   try {
     if (bumped.types.includes('video')) {
       const list = await options.search.upVideos(bumped.mid, 1, 10)
       videos.push(...list)
       for (const video of list) {
-        if (video.pubdate <= bumped.lastSeenPubdate) continue
+        if (video.pubdate <= baseline) continue
         if (bumped.recentIds.includes(video.bvid)) continue
         fresh.push({
           id: 'video:' + video.bvid,
@@ -344,14 +347,14 @@ export async function pollSubscription(subscription: Subscription, options: Poll
       }
       if (list.length > 0) {
         const newest = list[0]
-        if (newest !== undefined && newest.pubdate > bumped.lastSeenPubdate) bumped.lastSeenPubdate = newest.pubdate
+        if (newest !== undefined && newest.pubdate > newestPubdate) newestPubdate = newest.pubdate
       }
     }
     if (bumped.types.includes('dynamic')) {
       const list = await options.search.upDynamics(bumped.mid, 10)
       dynamics.push(...list)
       for (const dynamic of list) {
-        if (dynamic.pubdate <= bumped.lastSeenPubdate) continue
+        if (dynamic.pubdate <= baseline) continue
         if (bumped.recentIds.includes(dynamic.id)) continue
         fresh.push({
           id: 'dynamic:' + dynamic.id,
@@ -368,9 +371,11 @@ export async function pollSubscription(subscription: Subscription, options: Poll
       }
       if (list.length > 0) {
         const newest = list[0]
-        if (newest !== undefined && newest.pubdate > bumped.lastSeenPubdate) bumped.lastSeenPubdate = newest.pubdate
+        if (newest !== undefined && newest.pubdate > newestPubdate) newestPubdate = newest.pubdate
       }
     }
+    // 两类都处理完再推进：同轮里"视频更新、动态稍旧"不会被挤掉
+    bumped.lastSeenPubdate = Math.max(baseline, newestPubdate)
     const added = await options.store.push(fresh)
     // 记住最近 40 个 id，防重复
     const ids = fresh.map(item => item.id.replace(/^(video|dynamic):/, ''))
