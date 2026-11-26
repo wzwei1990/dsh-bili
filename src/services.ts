@@ -115,8 +115,8 @@ export class StoryboardService {
     // ② B 站（链接或 BV/av 号）：官方直连流（快，不落盘整段）
     if (isBiliId || !isGenericVideoUrl(trimmed)) {
       try {
-        const { info, url, audioUrl, headers } = await this.options.client.streamUrl(trimmed)
-        return await this.buildFromBiliStream({ info, url, ...(audioUrl === undefined ? {} : { audioUrl }), headers })
+        const stream = await this.options.client.streamUrl(trimmed)
+        return await this.buildFromBiliStream(stream)
       } catch (error) {
         // B 站链接**不再**退回 yt-dlp：机房 IP 上它必被 412 拦，实测一次要卡 141 秒，
         // 而这条延迟会直接拖死群里的回复。失败就快速报错，让上层只用弹幕/字幕。
@@ -144,6 +144,13 @@ export class StoryboardService {
     } finally {
       await cleanupDownload(tmp)
     }
+  }
+
+  /** 对本地视频文件生成分镜（amagi 兜底下载后使用） */
+  async buildFromLocalFile(filePath: string): Promise<StoryboardOutcome> {
+    const deps = await this.ensureDeps()
+    if (deps.ffmpeg === undefined) throw new Error('没有找到 ffmpeg：请安装它，或在设置里填 ffmpegPath')
+    return this.buildFromFile(filePath, deps)
   }
 
   private async buildFromFile(filePath: string, deps: StoryboardDeps, outDir?: string): Promise<StoryboardOutcome> {
@@ -200,6 +207,8 @@ export class StoryboardService {
     info: VideoInfo
     url: string
     audioUrl?: string
+    candidates?: string[]
+    audioCandidates?: string[]
     headers: Record<string, string>
   }): Promise<StoryboardOutcome> {
     if (!this.options.enabled) throw new Error('分镜未启用（配置 storyboard=false）')
@@ -208,26 +217,41 @@ export class StoryboardService {
     this.assertDuration(input.info.durationSec)
     const outDir = this.outputRoot()
     await mkdir(outDir, { recursive: true })
-    const workDir = await mkdtemp(join(outDir, 'work-'))
-    const result = await buildStoryboard({
-      streamUrl: input.url,
-      ...(input.audioUrl === undefined ? {} : { audioUrl: input.audioUrl }),
-      headers: input.headers,
-      frames: this.options.frames,
-      deps,
-      workDir,
-    })
-    const imagePath = await this.persist(result.imagePath, outDir, 'bili-' + input.info.bvid)
-    return {
-      imagePath,
-      title: input.info.title,
-      durationSec: input.info.durationSec,
-      width: result.width,
-      height: result.height,
-      timeline: result.timeline,
-      withWaveform: result.withWaveform,
-      source: 'bili',
+
+    // B 站 CDN 部分镜像会被风控（403/567），DASH 的 baseUrl/backupUrl 逐个试
+    const candidates = (input.candidates !== undefined && input.candidates.length > 0 ? input.candidates : [input.url]).slice(0, 6)
+    const audioCandidates = input.audioCandidates !== undefined && input.audioCandidates.length > 0
+      ? input.audioCandidates.slice(0, 4)
+      : (input.audioUrl === undefined ? [] : [input.audioUrl])
+    let lastError: unknown
+    for (const streamUrl of candidates) {
+      try {
+        const workDir = await mkdtemp(join(outDir, 'work-'))
+        const result = await buildStoryboard({
+          streamUrl,
+          ...(audioCandidates[0] === undefined ? {} : { audioUrl: audioCandidates[0] }),
+          headers: input.headers,
+          frames: this.options.frames,
+          deps,
+          workDir,
+        })
+        const imagePath = await this.persist(result.imagePath, outDir, 'bili-' + input.info.bvid)
+        return {
+          imagePath,
+          title: input.info.title,
+          durationSec: input.info.durationSec,
+          width: result.width,
+          height: result.height,
+          timeline: result.timeline,
+          withWaveform: result.withWaveform,
+          source: 'bili',
+        }
+      } catch (error) {
+        lastError = error
+        this.options.log('debug', 'B 站分镜：候选流失败，换下一个 (' + new URL(streamUrl).host + ')')
+      }
     }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 
   private async persist(sourcePath: string, outDir: string, prefix: string): Promise<string> {

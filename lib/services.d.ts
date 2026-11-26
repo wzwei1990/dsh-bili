@@ -49,6 +49,8 @@ export declare class StoryboardService {
      * @param input B 站链接 / 通用链接 / 本地路径
      */
     build(input: string): Promise<StoryboardOutcome>;
+    /** 对本地视频文件生成分镜（amagi 兜底下载后使用） */
+    buildFromLocalFile(filePath: string): Promise<StoryboardOutcome>;
     private buildFromFile;
     /** 把底层错误翻译成用户能行动的提示 */
     private explain;
@@ -62,6 +64,8 @@ export declare class StoryboardService {
         info: VideoInfo;
         url: string;
         audioUrl?: string;
+        candidates?: string[];
+        audioCandidates?: string[];
         headers: Record<string, string>;
     }): Promise<StoryboardOutcome>;
     private persist;

@@ -316,6 +316,10 @@ export class BiliClient {
     url: string
     /** DASH 的音频流（波形图用；没有就是 undefined） */
     audioUrl?: string
+    /** DASH 视频流的全部候选（baseUrl + backupUrl，部分 CDN 镜像会被风控） */
+    candidates: string[]
+    /** DASH 音频流的全部候选 */
+    audioCandidates: string[]
     headers: Record<string, string>
     quality: number
   }> {
@@ -326,7 +330,10 @@ export class BiliClient {
     const query: Record<string, string | number> = { bvid: info.bvid, cid: info.cid, qn, fnval: 16, fourk: 1 }
     const params = new URLSearchParams(Object.entries(query).map(([k, v]) => [k, String(v)] as [string, string])).toString()
     type PlayData = {
-      dash?: { video?: Array<{ baseUrl?: string; base_url?: string }>; audio?: Array<{ baseUrl?: string; base_url?: string }> }
+      dash?: {
+        video?: Array<{ baseUrl?: string; base_url?: string; backupUrl?: string[]; backup_url?: string[] }>
+        audio?: Array<{ baseUrl?: string; base_url?: string; backupUrl?: string[]; backup_url?: string[] }>
+      }
       durl?: Array<{ url?: string }>
     }
     // 先走免签名接口：免登录下它最稳（实测容器/云端 wbi 签名反而容易被 412 风控）
@@ -341,19 +348,29 @@ export class BiliClient {
       }
     }
     if (json.code !== 0) throw new HttpError('取视频流失败（B站返回 ' + String(json.code) + '：' + (json.message ?? '') + '）', undefined, json.code)
-    const dashUrl = json.data?.dash?.video?.[0]?.baseUrl ?? json.data?.dash?.video?.[0]?.base_url
-    const fallback = json.data?.durl?.[0]?.url
-    const stream = (dashUrl ?? fallback ?? '').trim()
+    const candidatesOf = (entry: { baseUrl?: string; base_url?: string; backupUrl?: string[]; backup_url?: string[] } | undefined): string[] => {
+      if (entry === undefined) return []
+      return [...new Set([entry.baseUrl, entry.base_url, ...(entry.backupUrl ?? []), ...(entry.backup_url ?? [])]
+        .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
+        .map(value => value.trim()))]
+    }
+    const videoCandidates = candidatesOf(json.data?.dash?.video?.[0])
+    const audioCandidates = candidatesOf(json.data?.dash?.audio?.[0])
+    const fallback = (json.data?.durl?.[0]?.url ?? '').trim()
+    if (fallback !== '' && !videoCandidates.includes(fallback)) videoCandidates.push(fallback)
+    const stream = videoCandidates[0] ?? ''
     if (stream === '') throw new HttpError('B站没有返回可用的视频流地址')
-    const audio = (json.data?.dash?.audio?.[0]?.baseUrl ?? json.data?.dash?.audio?.[0]?.base_url ?? '').trim()
     const result: {
       info: VideoInfo
       url: string
       audioUrl?: string
+      candidates: string[]
+      audioCandidates: string[]
       headers: Record<string, string>
       quality: number
-    } = { info, url: stream, headers: this.streamHeaders(), quality: qn }
-    if (audio !== '') result.audioUrl = audio
+    } = { info, url: stream, candidates: videoCandidates, audioCandidates, headers: this.streamHeaders(), quality: qn }
+    const audio = audioCandidates[0]
+    if (audio !== undefined) result.audioUrl = audio
     return result
   }
 

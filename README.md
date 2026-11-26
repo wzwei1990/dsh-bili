@@ -95,6 +95,7 @@ MIT
 - 不依赖抖音签名服务；部分内容需要 cookies（yt-dlp 侧处理，失败会提示）
 - 产物落在 `~/.dsh/dsh-bili/douyin/<作品id>/`：视频、`audio.wav`（平台中立，不生成任何下游专用格式）
 - 音频可交给 `tts_transcribe` 转台词，分镜图用 `read_image` 看画面；下游怎么用由调用方决定
+- B 站 CDN 风控时的兜底：amagi 的 `/api/bilibili/fetch_video_playurl` 返回完整 mp4，下载后本地抽帧（实测 1464×954）
 
 ## B 站分析 / 抖音解析（2026-11-26）
 

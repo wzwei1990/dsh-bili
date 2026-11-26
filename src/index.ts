@@ -231,6 +231,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     cookieInfo: () => ({ source: cookieSource, length: cookieValue.length, normalized: client.cookieValue.length }),
     biliAnalyze: (input: string) => analyzeBili(input, client, {
       ffmpegPath: config.ffmpegPath,
+      ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
       ...(config.storyboard ? { storyboard } : {}),
       log,
     }),

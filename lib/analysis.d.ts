@@ -5,11 +5,15 @@ export interface BiliAnalysis {
     info: VideoInfo;
     audioPath?: string;
     storyboard?: StoryboardOutcome;
+    /** 分镜失败原因（给工具输出用，避免静默） */
+    storyboardError?: string;
 }
 export interface BiliAnalysisOptions {
     /** 音频/中间产物根目录（默认 ~/.dsh/dsh-bili/analysis） */
     rootDir?: string;
     ffmpegPath?: string;
+    /** amagi 服务地址（B 站 CDN 被风控时的兜底流） */
+    amagiBaseUrl?: string;
     /** 分镜服务（不传就不生成分镜图） */
     storyboard?: StoryboardService;
     log?: (level: 'debug' | 'info' | 'warn', message: string) => void;

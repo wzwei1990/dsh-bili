@@ -126,6 +126,10 @@ export declare class BiliClient {
         url: string;
         /** DASH 的音频流（波形图用；没有就是 undefined） */
         audioUrl?: string;
+        /** DASH 视频流的全部候选（baseUrl + backupUrl，部分 CDN 镜像会被风控） */
+        candidates: string[];
+        /** DASH 音频流的全部候选 */
+        audioCandidates: string[];
         headers: Record<string, string>;
         quality: number;
     }>;

@@ -266,6 +266,8 @@ export async function buildDouyinAnalysis(input: string, options: DouyinOptions 
         title: amagi.title,
         uploader: amagi.uploader,
         durationSec: amagi.durationSec,
+        ...(amagi.width === undefined ? {} : { width: amagi.width }),
+        ...(amagi.height === undefined ? {} : { height: amagi.height }),
         ...(amagi.cover === undefined ? {} : { thumbnail: amagi.cover }),
         webpageUrl: amagi.webpageUrl,
       }

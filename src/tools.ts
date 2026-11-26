@@ -245,6 +245,8 @@ export function registerTools(ctx: Context, client: BiliClient, deps: ToolDeps):
           if (analysis.storyboard !== undefined) {
             lines.push('分镜：' + analysis.storyboard.imagePath)
             lines.push('时间轴：' + analysis.storyboard.timeline.map((t: { index: number; label: string }) => '#' + String(t.index) + ' ' + t.label).join('  '))
+          } else if (analysis.storyboardError !== undefined) {
+            lines.push('分镜：生成失败（' + analysis.storyboardError.slice(0, 120) + '）')
           }
           lines.push('')
           lines.push('下一步：① tts_transcribe(音频) 拿台词（没有 CC 字幕时尤其有用）；② read_image(分镜图) 看画面/构图。')

@@ -3,6 +3,8 @@ export interface DouyinWorkMeta {
     title: string;
     uploader: string;
     durationSec: number;
+    width?: number;
+    height?: number;
     cover?: string;
     playUrl?: string;
     likes?: number;
@@ -28,6 +30,8 @@ interface AmagiResponse {
             };
             video?: {
                 duration?: number;
+                width?: number;
+                height?: number;
                 ratio?: string;
                 play_addr?: {
                     url_list?: string[];
@@ -53,4 +57,18 @@ export declare function douyinIdOf(input: string): string | undefined;
 export declare function fetchDouyinWork(input: string, options: AmagiOptions): Promise<DouyinWorkMeta>;
 /** 把 amagi 返回的直链下载到本地（免 cookie，带抖音 Referer） */
 export declare function downloadDouyinPlayUrl(url: string, filePath: string): Promise<void>;
+export interface BiliPlayUrls {
+    urls: string[];
+    /** 视频总时长（ms） */
+    durationMs?: number;
+}
+/**
+ * 通过 amagi 取 B 站播放地址（durl mp4，通常比 DASH m4s 更抗 CDN 风控）。
+ * 调用方需要提供 avid + cid（BiliClient.resolve() 里有）。
+ */
+export declare function fetchBiliPlayUrls(input: {
+    avid: number;
+    cid: number;
+    qn?: number;
+}, options: AmagiOptions): Promise<BiliPlayUrls>;
 export {};

@@ -11,6 +11,8 @@ export interface DouyinWorkMeta {
   title: string
   uploader: string
   durationSec: number
+  width?: number
+  height?: number
   cover?: string
   playUrl?: string
   likes?: number
@@ -36,6 +38,8 @@ interface AmagiResponse {
       author?: { nickname?: string }
       video?: {
         duration?: number
+        width?: number
+        height?: number
         ratio?: string
         play_addr?: { url_list?: string[] }
         cover?: { url_list?: string[] }
@@ -61,6 +65,8 @@ export function parseAmagiWork(json: AmagiResponse, fallbackUrl: string): Douyin
     title: String(detail.desc ?? '').split('\n')[0]?.trim() ?? '',
     uploader: String(detail.author?.nickname ?? ''),
     durationSec: durationMs > 0 ? durationMs / 1000 : 0,
+    ...(detail.video?.width === undefined ? {} : { width: Number(detail.video.width) }),
+    ...(detail.video?.height === undefined ? {} : { height: Number(detail.video.height) }),
     ...(cover === undefined ? {} : { cover }),
     ...(playUrl === undefined ? {} : { playUrl }),
     ...(detail.statistics?.digg_count === undefined ? {} : { likes: detail.statistics.digg_count }),
@@ -124,4 +130,38 @@ export async function downloadDouyinPlayUrl(url: string, filePath: string): Prom
   if (!response.ok) throw new Error('下载抖音直链失败：HTTP ' + String(response.status))
   const { writeFile } = await import('node:fs/promises')
   await writeFile(filePath, Buffer.from(await response.arrayBuffer()))
+}
+
+export interface BiliPlayUrls {
+  urls: string[]
+  /** 视频总时长（ms） */
+  durationMs?: number
+}
+
+/**
+ * 通过 amagi 取 B 站播放地址（durl mp4，通常比 DASH m4s 更抗 CDN 风控）。
+ * 调用方需要提供 avid + cid（BiliClient.resolve() 里有）。
+ */
+export async function fetchBiliPlayUrls(
+  input: { avid: number; cid: number; qn?: number },
+  options: AmagiOptions,
+): Promise<BiliPlayUrls> {
+  const base = options.baseUrl.trim()
+  if (base === '') throw new Error('未配置 amagiBaseUrl')
+  const query = 'avid=' + String(input.avid) + '&cid=' + String(input.cid) + '&qn=' + String(input.qn ?? 64)
+  const response = await fetch(base.replace(/\/+$/, '') + '/api/bilibili/fetch_video_playurl?' + query, {
+    signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
+  })
+  if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
+  const json = await response.json() as {
+    success?: boolean
+    message?: string
+    data?: { data?: { durl?: Array<{ url?: string }>; timelength?: number } }
+  }
+  if (json.success !== true) throw new Error('amagi 取 B 站播放地址失败：' + (json.message ?? '未知错误'))
+  const durl = json.data?.data?.durl ?? []
+  const urls = durl.map(item => String(item.url ?? '')).filter(url => url !== '')
+  if (urls.length === 0) throw new Error('amagi 没有返回可用的 B 站播放地址')
+  const timelength = json.data?.data?.timelength
+  return { urls, ...(timelength === undefined ? {} : { durationMs: timelength }) }
 }
