@@ -9,6 +9,8 @@ import type { StoryboardService } from './services.js';
 import type { SearchClient } from './search.js';
 import type { CommentClient } from './comments.js';
 import type { ReplyWatchStore } from './replywatch.js';
+import type { DouyinAnalysis } from './douyin.js';
+import type { BiliAnalysis } from './analysis.js';
 export interface ToolDeps {
     subtitleMaxChars: number;
     storyboard: StoryboardService;
@@ -27,6 +29,10 @@ export interface ToolDeps {
         length: number;
         normalized: number;
     };
+    /** 抖音解析（A 档：yt-dlp + ffmpeg） */
+    douyin?: (input: string) => Promise<DouyinAnalysis>;
+    /** B 站分析（音频 + 分镜，A 档对齐） */
+    biliAnalyze?: (input: string) => Promise<BiliAnalysis>;
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
 /** 把视频信息 + 字幕拼成给模型读的文本。 */

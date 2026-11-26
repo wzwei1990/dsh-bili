@@ -44,6 +44,14 @@ export interface ConfigShape {
   ytdlpPath: string
   /** 视频信息/字幕缓存有效期（分钟，0=不缓存） */
   cacheTtlMinutes: number
+  /** 抖音下载分辨率上限（默认 720） */
+  douyinMaxHeight: number
+  /** 抖音视频最大时长（分钟，超过拒绝） */
+  douyinMaxMinutes: number
+  /** amagi 服务地址（抖音解析；空=只用 yt-dlp） */
+  amagiBaseUrl: string
+  /** 抖音 cookies.txt（yt-dlp 路径用，可选） */
+  douyinCookiesFile: string
   /** 日志级别 */
   logLevel: 'debug' | 'info' | 'warn'
 }
@@ -86,6 +94,14 @@ export const Config = z.object({
     .description('字幕正文最多返回多少字符（超出截断）').volatile(),
   cacheTtlMinutes: z.natural().default(1440)
     .description('视频信息与字幕缓存有效期（分钟，0=不缓存）').volatile(),
+  douyinMaxHeight: z.natural().default(720)
+    .description('抖音下载分辨率上限（默认 720p）').volatile(),
+  douyinMaxMinutes: z.natural().default(10)
+    .description('抖音视频最大时长（分钟，超过拒绝下载）').volatile(),
+  amagiBaseUrl: z.string().default('')
+    .description('amagi 服务地址（如 http://amagi:4567）；配了就走它解析抖音，空则只用 yt-dlp').volatile(),
+  douyinCookiesFile: z.string().default('')
+    .description('抖音 cookies.txt 路径（仅 yt-dlp 路径需要；amagi 不需要）').volatile(),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn')]).default('info')
     .description('日志级别').volatile(),
 })
@@ -109,6 +125,10 @@ export const DEFAULTS: ConfigShape = {
   searchCacheMinutes: 5,
   subtitleMaxChars: 6000,
   cacheTtlMinutes: 1440,
+  douyinMaxHeight: 720,
+  douyinMaxMinutes: 10,
+  amagiBaseUrl: '',
+  douyinCookiesFile: '',
   logLevel: 'info',
 }
 

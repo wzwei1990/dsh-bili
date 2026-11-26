@@ -10,6 +10,8 @@ export interface YtDlpOptions {
     dir: string;
     /** 超时（毫秒） */
     timeoutMs?: number;
+    /** Netscape cookies.txt 路径（抖音需要 fresh cookies） */
+    cookiesFile?: string;
 }
 export interface YtDlpResult {
     filePath: string;

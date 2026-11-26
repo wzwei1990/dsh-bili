@@ -43,6 +43,14 @@ export interface ConfigShape {
     ytdlpPath: string;
     /** 视频信息/字幕缓存有效期（分钟，0=不缓存） */
     cacheTtlMinutes: number;
+    /** 抖音下载分辨率上限（默认 720） */
+    douyinMaxHeight: number;
+    /** 抖音视频最大时长（分钟，超过拒绝） */
+    douyinMaxMinutes: number;
+    /** amagi 服务地址（抖音解析；空=只用 yt-dlp） */
+    amagiBaseUrl: string;
+    /** 抖音 cookies.txt（yt-dlp 路径用，可选） */
+    douyinCookiesFile: string;
     /** 日志级别 */
     logLevel: 'debug' | 'info' | 'warn';
 }
@@ -65,6 +73,10 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     searchCacheMinutes: z<number, number, "volatile-defined">;
     subtitleMaxChars: z<number, number, "volatile-defined">;
     cacheTtlMinutes: z<number, number, "volatile-defined">;
+    douyinMaxHeight: z<number, number, "volatile-defined">;
+    douyinMaxMinutes: z<number, number, "volatile-defined">;
+    amagiBaseUrl: z<string, string, "volatile-defined">;
+    douyinCookiesFile: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
     sessdata: z<string, string, "volatile-defined">;
@@ -85,6 +97,10 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     searchCacheMinutes: z<number, number, "volatile-defined">;
     subtitleMaxChars: z<number, number, "volatile-defined">;
     cacheTtlMinutes: z<number, number, "volatile-defined">;
+    douyinMaxHeight: z<number, number, "volatile-defined">;
+    douyinMaxMinutes: z<number, number, "volatile-defined">;
+    amagiBaseUrl: z<string, string, "volatile-defined">;
+    douyinCookiesFile: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, "plain">;
 export declare const DEFAULTS: ConfigShape;

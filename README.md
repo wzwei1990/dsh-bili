@@ -85,3 +85,33 @@ await bili.card('BV15cs96zEvi')                    // CardInfo（分享用）
 ## License
 
 MIT
+
+## 抖音解析（A 档，2026-11-26）
+
+| 工具 | 作用 |
+|---|---|
+| `douyin_parse` | 解析抖音分享链接：yt-dlp 下载 + ffprobe 元数据 + 抽 16k 音频 + 9 帧分镜 |
+
+- 不依赖抖音签名服务；部分内容需要 cookies（yt-dlp 侧处理，失败会提示）
+- 产物落在 `~/.dsh/dsh-bili/douyin/<作品id>/`：视频、`audio.wav`（平台中立，不生成任何下游专用格式）
+- 音频可交给 `tts_transcribe` 转台词，分镜图用 `read_image` 看画面；下游怎么用由调用方决定
+
+## B 站分析 / 抖音解析（2026-11-26）
+
+| 工具 | 作用 |
+|---|---|
+| `bili_analyze` | B 站视频：官方流取元信息 + 抽 16k 音频 + 9 帧分镜（不下载整片） |
+| `douyin_parse` | 抖音：元数据 + 视频 + 16k 音频 + 9 帧分镜；优先走 amagi 服务 |
+
+抖音解析推荐配 **amagi 服务**（本地签名、无头可用，Docker 里也能跑）：
+
+```yaml
+# 插件设置
+amagiBaseUrl: http://amagi:4567
+```
+
+容器见部署目录的 `amagi/`（Dockerfile + server.mjs）。没配 amagi 时退回 yt-dlp，
+但 yt-dlp 的抖音提取器目前缺详情接口签名，通常只能报错——不是 cookie 问题。
+
+产物落在 `~/.dsh/dsh-bili/douyin/<作品id>/`：`src.mp4`、`audio.wav`；
+B 站音频在 `~/.dsh/dsh-bili/analysis/<bvid>/audio.wav`。均为平台中立文件，不生成下游专用格式。

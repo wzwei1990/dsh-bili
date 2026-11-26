@@ -13,6 +13,8 @@ import type { SearchClient } from './search.js'
 import type { CommentClient } from './comments.js'
 import type { ReplyWatchStore } from './replywatch.js'
 import { checkReplyWatches } from './replycheck.js'
+import type { DouyinAnalysis } from './douyin.js'
+import type { BiliAnalysis } from './analysis.js'
 
 export interface ToolDeps {
   subtitleMaxChars: number
@@ -28,6 +30,10 @@ export interface ToolDeps {
   autoWatchOwnComments: boolean
   /** cookie 来源诊断（来源路径 + 原始/规整后长度） */
   cookieInfo?: () => { source: string; length: number; normalized: number }
+  /** 抖音解析（A 档：yt-dlp + ffmpeg） */
+  douyin?: (input: string) => Promise<DouyinAnalysis>
+  /** B 站分析（音频 + 分镜，A 档对齐） */
+  biliAnalyze?: (input: string) => Promise<BiliAnalysis>
   log: (level: 'debug' | 'info' | 'warn', message: string) => void
 }
 
@@ -212,6 +218,87 @@ export function registerTools(ctx: Context, client: BiliClient, deps: ToolDeps):
       return lines.join('\n')
     },
   }))
+
+  if (deps.biliAnalyze !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'bili_analyze',
+      description: '分析一个 B 站视频（A 档）：返回标题/UP/时长/播放，并抽出 16k 音频（没有 CC 字幕时用它做 ASR）和 9 帧分镜图。'
+        + '不下载整片（音频走 DASH 流）；产物落本地，交给 tts_transcribe / read_image 继续分析。',
+      parameters: {
+        url: { type: 'string', required: true, description: 'B 站链接 / BV 号 / av 号 / 含链接的一段话' },
+      },
+      output: textOutput(),
+      isConcurrencySafe: () => false,
+      execute: async args => {
+        const input = args as { url: string }
+        try {
+          const analysis = await deps.biliAnalyze?.(input.url)
+          if (analysis === undefined) return 'B 站分析不可用：插件未启用该能力'
+          const info = analysis.info
+          const lines = [
+            '【B站分析】' + info.title,
+            'UP主：' + info.up + '　时长：' + durationText(info.durationSec) + '　' + statText(info),
+            '链接：' + info.pageUrl,
+          ]
+          if (analysis.audioPath !== undefined) lines.push('音频（16k 单声道，可交给 tts_transcribe 转写）：' + analysis.audioPath)
+          else lines.push('音频：这条视频没有独立音频流（可退回 bili_subtitle 看有没有 CC）')
+          if (analysis.storyboard !== undefined) {
+            lines.push('分镜：' + analysis.storyboard.imagePath)
+            lines.push('时间轴：' + analysis.storyboard.timeline.map((t: { index: number; label: string }) => '#' + String(t.index) + ' ' + t.label).join('  '))
+          }
+          lines.push('')
+          lines.push('下一步：① tts_transcribe(音频) 拿台词（没有 CC 字幕时尤其有用）；② read_image(分镜图) 看画面/构图。')
+          return lines.join('\n')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          deps.log('warn', 'B 站分析失败: ' + message)
+          return 'B 站分析失败：' + message
+        }
+      },
+    }))
+  }
+
+  if (deps.douyin !== undefined) {
+    ctx.tools.register(defineTool({
+      name: 'douyin_parse',
+      description: '解析一个抖音分享链接（A 档：yt-dlp + ffmpeg）：返回标题/作者/时长/分辨率，并把视频、16k 音频、9 帧分镜图落到本地（不生成任何下游专用格式）。'
+        + '音频可再用 tts_transcribe 转成台词，分镜图用 read_image 看画面；不依赖任何抖音签名服务，部分内容需要 cookies（失败会提示）。',
+      parameters: {
+        url: { type: 'string', required: true, description: '抖音分享链接 / 含链接的一段话（douyin.com、v.douyin.com）' },
+      },
+      output: textOutput(),
+      isConcurrencySafe: () => false,
+      execute: async args => {
+        const input = args as { url: string }
+        try {
+          const analysis = await deps.douyin?.(input.url)
+          if (analysis === undefined) return '抖音解析不可用：插件未启用该能力'
+          const meta = analysis.meta
+          const resolution = meta.width !== undefined && meta.height !== undefined
+            ? String(meta.width) + '×' + String(meta.height) + (meta.fps === undefined ? '' : '@' + String(Math.round(meta.fps)) + 'fps')
+            : '未知'
+          const lines = [
+            '【抖音解析】' + meta.title,
+            '作者：' + (meta.uploader === '' ? '未知' : meta.uploader) + '　时长：' + durationText(meta.durationSec) + '　画面：' + resolution,
+            '链接：' + meta.webpageUrl,
+            '视频：' + analysis.videoPath,
+          ]
+          if (analysis.audioPath !== undefined) lines.push('音频（16k 单声道，可交给 tts_transcribe 转写）：' + analysis.audioPath)
+          if (analysis.storyboard !== undefined) {
+            lines.push('分镜：' + analysis.storyboard.imagePath)
+            lines.push('时间轴：' + analysis.storyboard.timeline.map((t: { index: number; label: string }) => '#' + String(t.index) + ' ' + t.label).join('  '))
+          }
+          lines.push('')
+          lines.push('下一步：① tts_transcribe(音频) 拿台词；② read_image(分镜图) 看画面/构图；③ 需要逐镜描述时再对本地视频调用 bili_storyboard 或抽帧。')
+          return lines.join('\n')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          deps.log('warn', '抖音解析失败: ' + message)
+          return '抖音解析失败：' + message
+        }
+      },
+    }))
+  }
 
   ctx.tools.register(defineTool({
     name: 'bili_card',

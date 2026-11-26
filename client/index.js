@@ -64,12 +64,47 @@
           key: 'storyboard',
           label: '抽帧做分镜图（9 帧拼一张，附时间轴与响度条）',
           kind: 'boolean',
-          hint: '需要 ffmpeg；非 B 站链接还需要 yt-dlp。关掉则只给字幕/弹幕。',
+          hint: '需要 ffmpeg；非 B 站链接还需要 yt-dlp。bili_analyze / douyin_parse 也依赖它（关掉后只返回音频/元数据）。',
         },
         { key: 'storyboardFrames', label: '分镜帧数（4 / 9 / 16）', kind: 'number', hint: '默认 9' },
         { key: 'maxStoryboardMinutes', label: '超过多少分钟就不抽帧（0=不限）', kind: 'number', hint: '默认 30，防止拉长片' },
         { key: 'ffmpegPath', label: 'ffmpeg 路径（留空=自动探测）', kind: 'text', placeholder: '如 C:\\ffmpeg\\bin\\ffmpeg.exe 或 /usr/bin/ffmpeg' },
-        { key: 'ytdlpPath', label: 'yt-dlp 路径（留空=自动探测）', kind: 'text', placeholder: '如 C:\\tools\\yt-dlp.exe 或 /usr/local/bin/yt-dlp' },
+        {
+          key: 'ytdlpPath',
+          label: 'yt-dlp 路径（留空=自动探测）',
+          kind: 'text',
+          placeholder: '如 C:\\tools\\yt-dlp.exe 或 /usr/local/bin/yt-dlp',
+          hint: '抖音解析需要它；bili_storyboard 打开非 B 站链接时也用它',
+        },
+
+        { section: '视频分析（B 站 / 抖音）' },
+        {
+          key: 'douyinMaxHeight',
+          label: '抖音下载分辨率上限',
+          kind: 'number',
+          hint: '默认 720。越高越慢、文件越大；bili_analyze 走官方流不受此项影响。',
+        },
+        {
+          key: 'douyinMaxMinutes',
+          label: '抖音视频最大时长（分钟）',
+          kind: 'number',
+          hint: '默认 10。超过直接拒绝下载，防止为分析一个长视频等很久。',
+        },
+
+        {
+          key: 'amagiBaseUrl',
+          label: 'amagi 服务地址（抖音解析，如 http://amagi:4567）',
+          kind: 'text',
+          placeholder: '留空则只用 yt-dlp（需要 cookies，抖音上通常不可用）',
+          hint: 'amagi 是独立容器，本地签名、无头可用；配了之后抖音解析走它，免 cookie。',
+        },
+        {
+          key: 'douyinCookiesFile',
+          label: '抖音 cookies.txt 路径（仅 yt-dlp 路径用）',
+          kind: 'text',
+          placeholder: '如 C:\\Users\\you\\Downloads\\douyin-cookies.txt',
+          hint: 'amagi 路径不需要；仅当你没配 amagi、想用 yt-dlp 时才需要。',
+        },
 
         { section: '日志' },
         {

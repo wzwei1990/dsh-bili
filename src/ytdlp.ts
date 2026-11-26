@@ -21,6 +21,8 @@ export interface YtDlpOptions {
   dir: string
   /** 超时（毫秒） */
   timeoutMs?: number
+  /** Netscape cookies.txt 路径（抖音需要 fresh cookies） */
+  cookiesFile?: string
 }
 
 export interface YtDlpResult {
@@ -85,6 +87,9 @@ export async function downloadWithYtDlp(url: string, options: YtDlpOptions): Pro
   ]
   if (options.maxDurationSec !== undefined && options.maxDurationSec > 0) {
     args.splice(0, 0, '--match-filter', 'duration<=' + String(Math.round(options.maxDurationSec)))
+  }
+  if (options.cookiesFile !== undefined && options.cookiesFile !== '') {
+    args.unshift('--cookies', options.cookiesFile)
   }
   await runBinary(bin, ytdlpArgs(bin, args), timeoutMs)
   const files = (await readdir(options.dir)).filter(name => /^src\./.test(name))

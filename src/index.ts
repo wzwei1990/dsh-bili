@@ -23,6 +23,9 @@ import { ReplyWatchStore } from './replywatch.js'
 import { checkReplyWatches } from './replycheck.js'
 import { StoryboardService } from './services.js'
 import { registerTools } from './tools.js'
+import { analyzeBili } from './analysis.js'
+import { buildDouyinAnalysis, probeDouyinQuick } from './douyin.js'
+import { fetchDouyinWork } from './amagi.js'
 import { MIN_REAL_COOKIE_LENGTH, readCookieFromProfiles } from './profilecookie.js'
 import { watchProfileCookie } from './cookiewatch.js'
 
@@ -226,6 +229,21 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     replyWatchMax: config.replyWatchMax,
     autoWatchOwnComments: config.autoWatchOwnComments,
     cookieInfo: () => ({ source: cookieSource, length: cookieValue.length, normalized: client.cookieValue.length }),
+    biliAnalyze: (input: string) => analyzeBili(input, client, {
+      ffmpegPath: config.ffmpegPath,
+      ...(config.storyboard ? { storyboard } : {}),
+      log,
+    }),
+    douyin: (input: string) => buildDouyinAnalysis(input, {
+      maxHeight: config.douyinMaxHeight,
+      maxDurationSec: Math.max(1, config.douyinMaxMinutes) * 60,
+      ffmpegPath: config.ffmpegPath,
+      ytdlpPath: config.ytdlpPath,
+      ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
+      ...(config.douyinCookiesFile === '' ? {} : { cookiesFile: config.douyinCookiesFile }),
+      ...(config.storyboard ? { storyboard } : {}),
+      log,
+    }),
     log,
   })
 
@@ -236,6 +254,24 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       resolve: (input: string) => client.resolve(input),
       subtitle: (input: string, options?: { maxChars?: number }) => client.readSubtitle(input, options),
       card: (input: string) => client.card(input),
+      /** 抖音元数据（优先 amagi；给 napcat 主动发言用，不下载视频） */
+      douyinMeta: async (input: string) => {
+        if (config.amagiBaseUrl !== '') {
+          const work = await fetchDouyinWork(input, { baseUrl: config.amagiBaseUrl })
+          return {
+            title: work.title, uploader: work.uploader, durationSec: work.durationSec,
+            description: work.description, url: work.webpageUrl,
+            ...(work.likes === undefined ? {} : { likes: work.likes }),
+            ...(work.cover === undefined ? {} : { cover: work.cover }),
+          }
+        }
+        const quick = await probeDouyinQuick(input)
+        return {
+          title: quick.title, uploader: quick.uploader ?? '', durationSec: 0,
+          description: quick.description ?? '', url: quick.url,
+          ...(quick.likes === undefined ? {} : { likes: quick.likes }),
+        }
+      },
       /** 弹幕概况（免登录）：高光时段 + 被反复刷的弹幕 */
       danmaku: (input: string, options?: { cid?: number }) => client.danmaku(input, options),
       /** 分镜：B 站链接 / 其它链接（yt-dlp）/ 本地文件都行 */
