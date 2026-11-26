@@ -77,12 +77,19 @@
           hint: '抖音解析需要它；bili_storyboard 打开非 B 站链接时也用它',
         },
 
-        { section: '视频分析（B 站 / 抖音）' },
+        { section: '抖音解析（B 站分析不需要这里的配置）' },
+        {
+          key: 'amagiBaseUrl',
+          label: 'amagi 服务地址（抖音解析用）',
+          kind: 'text',
+          placeholder: '如 http://127.0.0.1:4567（本机 DSH）或 http://amagi:4567（Docker 内）',
+          hint: 'amagi 是独立容器，本地签名、无头可用；配了之后抖音解析走它，免 cookie。B 站分析（bili_analyze）走官方流，不依赖它。',
+        },
         {
           key: 'douyinMaxHeight',
           label: '抖音下载分辨率上限',
           kind: 'number',
-          hint: '默认 720。越高越慢、文件越大；bili_analyze 走官方流不受此项影响。',
+          hint: '默认 720。越高越慢、文件越大；B 站分析不受此项影响。',
         },
         {
           key: 'douyinMaxMinutes',
@@ -90,20 +97,12 @@
           kind: 'number',
           hint: '默认 10。超过直接拒绝下载，防止为分析一个长视频等很久。',
         },
-
-        {
-          key: 'amagiBaseUrl',
-          label: 'amagi 服务地址（抖音解析，如 http://amagi:4567）',
-          kind: 'text',
-          placeholder: '留空则只用 yt-dlp（需要 cookies，抖音上通常不可用）',
-          hint: 'amagi 是独立容器，本地签名、无头可用；配了之后抖音解析走它，免 cookie。',
-        },
         {
           key: 'douyinCookiesFile',
-          label: '抖音 cookies.txt 路径（仅 yt-dlp 路径用）',
+          label: '抖音 cookies.txt 路径（仅 yt-dlp 降级路径用）',
           kind: 'text',
           placeholder: '如 C:\\Users\\you\\Downloads\\douyin-cookies.txt',
-          hint: 'amagi 路径不需要；仅当你没配 amagi、想用 yt-dlp 时才需要。',
+          hint: '配了 amagi 就不需要；只有你想在没有 amagi 时用 yt-dlp 才用到。',
         },
 
         { section: '日志' },

@@ -104,5 +104,10 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, "plain">;
 export declare const DEFAULTS: ConfigShape;
-/** volatile 字段可能没有默认值，统一内置默认补一遍。 */
+/** 取活值：volatile 引用调 get()，普通值原样返回。 */
+export declare function readVolatile<T>(value: unknown): T | undefined;
+/**
+ * 配置代理：每次读字段都从 volatile 引用取当前值。
+ * 这样设置页保存后**不用重启插件**，amagiBaseUrl / 抖音参数等立即生效。
+ */
 export declare function resolveConfig(input: Partial<ConfigShape> | undefined): ConfigShape;

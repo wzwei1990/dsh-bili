@@ -132,23 +132,45 @@ export const DEFAULTS: ConfigShape = {
   logLevel: 'info',
 }
 
-/** volatile 字段可能没有默认值，统一内置默认补一遍。 */
-export function resolveConfig(input: Partial<ConfigShape> | undefined): ConfigShape {
-  const merged: ConfigShape = { ...DEFAULTS }
-  const source = input ?? {}
-  for (const key of Object.keys(DEFAULTS) as Array<keyof ConfigShape>) {
-    const value = (source as Record<string, unknown>)[key as string]
-    if (value === undefined || value === null) continue
-    if (key === 'logLevel') {
-      if (value === 'debug' || value === 'info' || value === 'warn') merged.logLevel = value
-      continue
-    }
-    if (key === 'sessdata') {
-      merged.sessdata = String(value)
-      continue
-    }
-    const numeric = Number(value)
-    if (Number.isFinite(numeric)) merged[key] = Math.max(0, Math.floor(numeric)) as never
+/** volatile 字段在运行时是 `{ get(): T }` 的稳定引用（cosmokit 的 Volatile）。 */
+interface VolatileRef<T> {
+  get(): T
+}
+
+/** 取活值：volatile 引用调 get()，普通值原样返回。 */
+export function readVolatile<T>(value: unknown): T | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'object' && typeof (value as VolatileRef<T>).get === 'function') {
+    return (value as VolatileRef<T>).get()
   }
-  return merged
+  return value as T
+}
+
+const STRING_KEYS = new Set<keyof ConfigShape>([
+  'sessdata', 'cookieFile', 'ffmpegPath', 'ytdlpPath', 'amagiBaseUrl', 'douyinCookiesFile',
+])
+const BOOLEAN_KEYS = new Set<keyof ConfigShape>(['allowWrite', 'autoWatchOwnComments', 'storyboard'])
+
+/**
+ * 配置代理：每次读字段都从 volatile 引用取当前值。
+ * 这样设置页保存后**不用重启插件**，amagiBaseUrl / 抖音参数等立即生效。
+ */
+export function resolveConfig(input: Partial<ConfigShape> | undefined): ConfigShape {
+  const source = (input ?? {}) as Record<string, unknown>
+  const base: ConfigShape = { ...DEFAULTS }
+  return new Proxy(base, {
+    get(target, prop, receiver) {
+      if (typeof prop !== 'string' || !(prop in DEFAULTS)) return Reflect.get(target, prop, receiver)
+      const key = prop as keyof ConfigShape
+      const value = readVolatile<unknown>(source[prop])
+      if (value === undefined || value === null) return target[key]
+      if (key === 'logLevel') {
+        return value === 'debug' || value === 'info' || value === 'warn' ? value : target.logLevel
+      }
+      if (key === 'sessdata' || STRING_KEYS.has(key)) return String(value)
+      if (BOOLEAN_KEYS.has(key)) return Boolean(value)
+      const numeric = Number(value)
+      return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : target[key]
+    },
+  }) as ConfigShape
 }

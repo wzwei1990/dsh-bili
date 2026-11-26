@@ -12,7 +12,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import type { BiliClient } from './bili.js'
+import type { BiliClient, VideoInfo } from './bili.js'
 import { resolveStoryboardDeps, type StoryboardDeps } from './deps.js'
 import { buildStoryboard, findStoryboardFont } from './storyboard.js'
 import { downloadWithYtDlp, isGenericVideoUrl, resolveYtDlp, cleanupDownload } from './ytdlp.js'
@@ -116,27 +116,7 @@ export class StoryboardService {
     if (isBiliId || !isGenericVideoUrl(trimmed)) {
       try {
         const { info, url, audioUrl, headers } = await this.options.client.streamUrl(trimmed)
-        this.assertDuration(info.durationSec)
-        const workDir = await mkdtemp(join(outDir, 'work-'))
-        const result = await buildStoryboard({
-          streamUrl: url,
-          ...(audioUrl === undefined ? {} : { audioUrl }),
-          headers,
-          frames: this.options.frames,
-          deps,
-          workDir,
-        })
-        const imagePath = await this.persist(result.imagePath, outDir, 'bili-' + info.bvid)
-        return {
-          imagePath,
-          title: info.title,
-          durationSec: info.durationSec,
-          width: result.width,
-          height: result.height,
-          timeline: result.timeline,
-          withWaveform: result.withWaveform,
-          source: 'bili',
-        }
+        return await this.buildFromBiliStream({ info, url, ...(audioUrl === undefined ? {} : { audioUrl }), headers })
       } catch (error) {
         // B 站链接**不再**退回 yt-dlp：机房 IP 上它必被 412 拦，实测一次要卡 141 秒，
         // 而这条延迟会直接拖死群里的回复。失败就快速报错，让上层只用弹幕/字幕。
@@ -211,6 +191,45 @@ export class StoryboardService {
   }
 
   /** 把临时目录里的成品图挪到稳定目录（work dir 会被随机命名） */
+
+  /**
+   * 用**已经取到的** B 站直连流生成分镜。
+   * analyzeBili 先 streamUrl 抽音频，再调这里复用同一个流；否则二次 playurl 会拿到 403 的地址。
+   */
+  async buildFromBiliStream(input: {
+    info: VideoInfo
+    url: string
+    audioUrl?: string
+    headers: Record<string, string>
+  }): Promise<StoryboardOutcome> {
+    if (!this.options.enabled) throw new Error('分镜未启用（配置 storyboard=false）')
+    const deps = await this.ensureDeps()
+    if (deps.ffmpeg === undefined) throw new Error('没有找到 ffmpeg：请安装它，或在设置里填 ffmpegPath')
+    this.assertDuration(input.info.durationSec)
+    const outDir = this.outputRoot()
+    await mkdir(outDir, { recursive: true })
+    const workDir = await mkdtemp(join(outDir, 'work-'))
+    const result = await buildStoryboard({
+      streamUrl: input.url,
+      ...(input.audioUrl === undefined ? {} : { audioUrl: input.audioUrl }),
+      headers: input.headers,
+      frames: this.options.frames,
+      deps,
+      workDir,
+    })
+    const imagePath = await this.persist(result.imagePath, outDir, 'bili-' + input.info.bvid)
+    return {
+      imagePath,
+      title: input.info.title,
+      durationSec: input.info.durationSec,
+      width: result.width,
+      height: result.height,
+      timeline: result.timeline,
+      withWaveform: result.withWaveform,
+      source: 'bili',
+    }
+  }
+
   private async persist(sourcePath: string, outDir: string, prefix: string): Promise<string> {
     const { copyFile, mkdir } = await import('node:fs/promises')
     await mkdir(outDir, { recursive: true })

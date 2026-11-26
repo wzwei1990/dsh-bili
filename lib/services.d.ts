@@ -1,4 +1,4 @@
-import type { BiliClient } from './bili.js';
+import type { BiliClient, VideoInfo } from './bili.js';
 export interface StoryboardServiceOptions {
     client: BiliClient;
     /** 是否启用抽帧 */
@@ -54,5 +54,15 @@ export declare class StoryboardService {
     private explain;
     private assertDuration;
     /** 把临时目录里的成品图挪到稳定目录（work dir 会被随机命名） */
+    /**
+     * 用**已经取到的** B 站直连流生成分镜。
+     * analyzeBili 先 streamUrl 抽音频，再调这里复用同一个流；否则二次 playurl 会拿到 403 的地址。
+     */
+    buildFromBiliStream(input: {
+        info: VideoInfo;
+        url: string;
+        audioUrl?: string;
+        headers: Record<string, string>;
+    }): Promise<StoryboardOutcome>;
     private persist;
 }
