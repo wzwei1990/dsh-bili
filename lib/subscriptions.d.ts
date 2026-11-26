@@ -30,6 +30,10 @@ export interface OutboxItem {
     deliveredTo: string[];
     /** 摘要（动态正文/视频时长等） */
     extra?: string;
+    /** 封面/首图（推送卡片用；消费方可以发图） */
+    coverUrl?: string;
+    /** 动态配图（最多 9 张） */
+    images?: string[];
 }
 export interface SubscriptionStoreOptions {
     /** 数据目录，缺省 ~/.dsh/dsh-bili */

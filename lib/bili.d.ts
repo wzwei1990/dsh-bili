@@ -59,6 +59,8 @@ export interface BiliClientOptions {
     log?: (level: 'debug' | 'info' | 'warn', message: string) => void;
     /** 缓存目录（默认 <home>/.dsh/dsh-bili/cache） */
     cacheDir?: string;
+    /** B 站滚动刷新 cookie 时回调（宿主用来回写 cookie 文件） */
+    onCookieRefresh?: (cookie: string) => void;
 }
 /** 从任意文本里抠出 BV 号 / av 号 / b23 短链。 */
 export declare function extractTarget(input: string): {
@@ -79,6 +81,7 @@ export declare class BiliClient {
     private readonly log;
     private readonly memory;
     private wbiKeyCache;
+    private readonly onCookieRefresh?;
     constructor(options?: BiliClientOptions);
     /** 运行时替换 cookie（设置页保存后热更新用，不必重启 DSH）。 */
     setCookie(raw: string): void;

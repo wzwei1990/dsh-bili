@@ -11,6 +11,8 @@ export interface HttpOptions {
   cookie?: string
   timeoutMs?: number
   headers?: Record<string, string>
+  /** 响应里出现 Set-Cookie 时回调（B 站会滚动刷新 SESSDATA，见 cookie.ts） */
+  onSetCookie?: (lines: string[]) => void
 }
 
 /** 网络/接口错误：带状态码与 B 站业务码，方便上层给模型一句人话。 */
@@ -44,6 +46,8 @@ export async function getJson<T>(url: string, options: HttpOptions = {}): Promis
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetch(url, { headers: headersOf(options), signal: controller.signal })
+    const lines = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : []
+    if (lines.length > 0) options.onSetCookie?.(lines)
     if (!response.ok) throw new HttpError('HTTP ' + String(response.status), response.status)
     return await response.json() as T
   } catch (error) {
@@ -66,6 +70,8 @@ export async function followRedirect(url: string, options: HttpOptions = {}): Pr
       redirect: 'follow',
       signal: controller.signal,
     })
+    const lines = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : []
+    if (lines.length > 0) options.onSetCookie?.(lines)
     return response.url === '' ? url : response.url
   } catch {
     return url

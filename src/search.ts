@@ -63,6 +63,8 @@ export interface UpVideo {
   durationSec: number
   play: number
   url: string
+  /** 封面图 URL（推送卡片用） */
+  cover: string
 }
 
 export interface UpDynamic {
@@ -72,6 +74,8 @@ export interface UpDynamic {
   pubdate: number
   url: string
   imageCount: number
+  /** 动态配图 URL（最多 9 张，推送卡片用） */
+  images: string[]
 }
 
 export interface WbiKeys {
@@ -88,6 +92,15 @@ export interface SearchClientOptions {
   cacheGet?: <T>(key: string) => T | undefined
   cacheSet?: (key: string, value: unknown) => void
   log?: (level: 'debug' | 'info' | 'warn', message: string) => void
+}
+
+/** B 站图床常给协议相对地址（//i0.hdslb.com/...）：补成 https，顺便把 http 升级 */
+export function normalizeMediaUrl(raw: string): string {
+  const url = raw.trim()
+  if (url === '') return ''
+  if (url.startsWith('//')) return 'https:' + url
+  if (url.startsWith('http://')) return 'https://' + url.slice('http://'.length)
+  return url
 }
 
 const DURATION_RANGE: Record<number, [number, number] | undefined> = {
@@ -225,7 +238,7 @@ export class SearchClient {
         danmaku: Number(item.video_review ?? 0),
         durationSec: parseClock(String(item.duration ?? '')),
         pubdate: Number(item.pubdate ?? 0),
-        cover: String(item.pic ?? ''),
+        cover: normalizeMediaUrl(String(item.pic ?? '')),
         url: bvid === '' ? '' : 'https://www.bilibili.com/video/' + bvid,
         ...(item.description === undefined ? {} : { description: stripTags(String(item.description)) }),
       }
@@ -317,6 +330,7 @@ export class SearchClient {
         durationSec: parseClock(String(item.length ?? '')),
         play: Number(item.play ?? 0),
         url: bvid === '' ? '' : 'https://www.bilibili.com/video/' + bvid,
+        cover: normalizeMediaUrl(String(item.pic ?? '')),
       }
     }).filter(video => video.bvid !== '')
     this.cacheSet(cacheKey, videos)
@@ -348,9 +362,13 @@ export class SearchClient {
       const stat = (modules.module_stat ?? {}) as Record<string, unknown>
       const comment = (stat.comment ?? {}) as { count?: number }
       const pubTs = Number(author.pub_ts ?? 0)
-      const imageCount = Array.isArray((major.draw as { items?: unknown[] } | undefined)?.items)
-        ? ((major.draw as { items?: unknown[] }).items ?? []).length
-        : 0
+      const drawItems = Array.isArray((major.draw as { items?: unknown[] } | undefined)?.items)
+        ? ((major.draw as { items?: unknown[] }).items ?? [])
+        : []
+      const images = drawItems
+        .map(entry => normalizeMediaUrl(String((entry as { src?: unknown }).src ?? '')))
+        .filter(src => src !== '')
+      const imageCount = drawItems.length
       if (id === '') continue
       dynamics.push({
         id,
@@ -359,6 +377,7 @@ export class SearchClient {
         pubdate: pubTs,
         url: 'https://t.bilibili.com/' + id,
         imageCount,
+        images,
       })
     }
     this.cacheSet(cacheKey, dynamics)

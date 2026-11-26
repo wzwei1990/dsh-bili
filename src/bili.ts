@@ -9,6 +9,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { followRedirect, getJson, HttpError, type HttpOptions } from './http.js'
+import { mergeSetCookie } from './cookie.js'
 import { fetchDanmakuXml, parseDanmakuXml, summarizeDanmaku, type DanmakuSummary } from './danmaku.js'
 import { signQuery } from './wbi.js'
 
@@ -77,6 +78,8 @@ export interface BiliClientOptions {
   log?: (level: 'debug' | 'info' | 'warn', message: string) => void
   /** 缓存目录（默认 <home>/.dsh/dsh-bili/cache） */
   cacheDir?: string
+  /** B 站滚动刷新 cookie 时回调（宿主用来回写 cookie 文件） */
+  onCookieRefresh?: (cookie: string) => void
 }
 
 const API = 'https://api.bilibili.com'
@@ -138,8 +141,11 @@ export class BiliClient {
   private readonly memory = new Map<string, { at: number; value: unknown }>()
   private wbiKeyCache: { imgKey: string; subKey: string; at: number } | undefined
 
+  private readonly onCookieRefresh?: (cookie: string) => void
+
   constructor(options: BiliClientOptions = {}) {
     this.cookie = normalizeCookie(options.cookie ?? '')
+    this.onCookieRefresh = options.onCookieRefresh
     this.timeoutMs = options.timeoutMs ?? 15000
     this.cacheTtlMs = options.cacheTtlMs ?? 24 * 60 * 60_000
     this.cacheDir = options.cacheDir ?? join(homedir(), '.dsh', 'dsh-bili', 'cache')
@@ -155,7 +161,17 @@ export class BiliClient {
   }
 
   private httpOptions(): HttpOptions {
-    return { cookie: this.cookie, timeoutMs: this.timeoutMs }
+    return {
+      cookie: this.cookie,
+      timeoutMs: this.timeoutMs,
+      onSetCookie: (lines) => {
+        const merged = mergeSetCookie(this.cookie, lines)
+        if (!merged.changed) return
+        this.cookie = merged.cookie
+        this.wbiKeyCache = undefined
+        this.onCookieRefresh?.(merged.cookie)
+      },
+    }
   }
 
   /** 解链接 → 统一成 bvid（b23 短链会先跟随跳转）。 */

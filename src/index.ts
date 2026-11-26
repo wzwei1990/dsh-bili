@@ -111,12 +111,28 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     }),
   )
 
+  // B 站滚动刷新 SESSDATA：跟随 Set-Cookie 回写文件（每分钟最多一次），避免"网页有效、插件失效"
+  let lastCookiePersistAt = 0
+  const persistCookie = (next: string): void => {
+    const now = Date.now()
+    if (now - lastCookiePersistAt < 60_000) return
+    lastCookiePersistAt = now
+    try {
+      mkdirSync(dirname(cookieFile), { recursive: true })
+      writeFileSync(cookieFile, next + '\n', 'utf8')
+      log('info', '已跟随 B 站刷新 cookie（' + cookieFile + '）')
+    } catch (error) {
+      log('warn', '回写刷新后的 cookie 失败: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+
   const client = new BiliClient({
     // 交给 BiliClient.normalizeCookie 判断是「只填 SESSDATA 值」还是「整段 cookie」
     cookie: cookieValue,
     timeoutMs: config.timeoutMs,
     cacheTtlMs: Math.max(0, config.cacheTtlMinutes) * 60_000,
     log,
+    onCookieRefresh: persistCookie,
   })
 
   const storyboard = new StoryboardService({

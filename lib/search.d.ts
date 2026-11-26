@@ -42,6 +42,8 @@ export interface UpVideo {
     durationSec: number;
     play: number;
     url: string;
+    /** 封面图 URL（推送卡片用） */
+    cover: string;
 }
 export interface UpDynamic {
     id: string;
@@ -50,6 +52,8 @@ export interface UpDynamic {
     pubdate: number;
     url: string;
     imageCount: number;
+    /** 动态配图 URL（最多 9 张，推送卡片用） */
+    images: string[];
 }
 export interface WbiKeys {
     imgKey: string;
@@ -65,6 +69,8 @@ export interface SearchClientOptions {
     cacheSet?: (key: string, value: unknown) => void;
     log?: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
+/** B 站图床常给协议相对地址（//i0.hdslb.com/...）：补成 https，顺便把 http 升级 */
+export declare function normalizeMediaUrl(raw: string): string;
 /** "12:34" / "1:02:03" → 秒 */
 export declare function parseClock(text: string): number;
 export declare const SPACE_COOLDOWN_MS: number;

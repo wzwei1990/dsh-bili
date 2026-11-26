@@ -36,7 +36,7 @@ dsh plugin --profile web add github:wzwei1990/dsh-bili
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `sessdata` | 空 | B 站 cookie 里的 `SESSDATA`。**不填也能解析公开视频**，但很多**字幕/AI 字幕需要登录才可见**，想稳定读字幕就填 |
+| `sessdata` | 空 | B 站 cookie 里的 `SESSDATA`。**不填也能解析公开视频**，但很多**字幕/AI 字幕需要登录才可见**，想稳定读字幕就填。会跟随 B 站的 `Set-Cookie` 自动刷新并回写 cookie 文件（网页有效而插件失效时，多半是浏览器已滚动到新值） |
 | `timeoutMs` | `15000` | 单次请求超时 |
 | `subtitleMaxChars` | `6000` | 字幕最多返回多少字符（超出截断并标注） |
 | `cacheTtlMinutes` | `1440` | 视频信息/字幕缓存有效期（0=不缓存） |

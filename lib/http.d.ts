@@ -9,6 +9,8 @@ export interface HttpOptions {
     cookie?: string;
     timeoutMs?: number;
     headers?: Record<string, string>;
+    /** 响应里出现 Set-Cookie 时回调（B 站会滚动刷新 SESSDATA，见 cookie.ts） */
+    onSetCookie?: (lines: string[]) => void;
 }
 /** 网络/接口错误：带状态码与 B 站业务码，方便上层给模型一句人话。 */
 export declare class HttpError extends Error {

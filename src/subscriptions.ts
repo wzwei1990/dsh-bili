@@ -47,6 +47,10 @@ export interface OutboxItem {
   deliveredTo: string[]
   /** 摘要（动态正文/视频时长等） */
   extra?: string
+  /** 封面/首图（推送卡片用；消费方可以发图） */
+  coverUrl?: string
+  /** 动态配图（最多 9 张） */
+  images?: string[]
 }
 
 export interface SubscriptionStoreOptions {
@@ -59,6 +63,14 @@ function dataDir(): string {
   const dshHome = process.env.DSH_HOME
   const base = dshHome !== undefined && dshHome !== '' ? dshHome : join(homedir(), '.dsh')
   return join(base, 'dsh-bili')
+}
+
+/** 播放量 → 1.2万 / 3.4亿 */
+function humanCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  if (value >= 100_000_000) return (value / 100_000_000).toFixed(1).replace(/\.0$/, '') + '亿'
+  if (value >= 10_000) return (value / 10_000).toFixed(1).replace(/\.0$/, '') + '万'
+  return String(Math.round(value))
 }
 
 function numberOr(value: unknown, fallback: number): number {
@@ -320,7 +332,14 @@ export async function pollSubscription(subscription: Subscription, options: Poll
           url: video.url,
           pubdate: video.pubdate,
           groups: [...bumped.groups],
-          ...(video.durationSec > 0 ? { extra: Math.round(video.durationSec / 60) + ' 分钟' } : {}),
+          ...(() => {
+            const parts: string[] = []
+            if (video.durationSec > 0) parts.push(Math.round(video.durationSec / 60) + ' 分钟')
+            const play = humanCount(video.play)
+            if (play !== '') parts.push(play + ' 播放')
+            return parts.length > 0 ? { extra: parts.join(' · ') } : {}
+          })(),
+          ...(video.cover !== '' ? { coverUrl: video.cover } : {}),
         })
       }
       if (list.length > 0) {
@@ -344,6 +363,7 @@ export async function pollSubscription(subscription: Subscription, options: Poll
           pubdate: dynamic.pubdate,
           groups: [...bumped.groups],
           ...(dynamic.imageCount > 0 ? { extra: dynamic.imageCount + ' 张图' } : {}),
+          ...(dynamic.images.length > 0 ? { coverUrl: dynamic.images[0], images: dynamic.images.slice(0, 9) } : {}),
         })
       }
       if (list.length > 0) {
