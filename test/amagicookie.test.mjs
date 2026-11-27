@@ -46,3 +46,20 @@ test('amagi B 站 cookie：显式配置优先，留空复用插件自己的', ()
   assert.equal(preferConfigured('', 'SESSDATA=own'), 'SESSDATA=own')
   assert.equal(preferConfigured('  ', ' SESSDATA=own '), 'SESSDATA=own')
 })
+
+test('resolver：只有宿主传值（长）时也会立即落文件', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'amagi-cookie2-'))
+  const oldHome = process.env.DSH_HOME
+  try {
+    process.env.DSH_HOME = root
+    const full = 'ttwid=fake; ' + 'k=v; '.repeat(30) + 'uid_tt=abc'
+    const file = join(root, 'amagi-douyin.txt')
+    const resolve = createAmagiCookieResolver({ key: 'amagiDouyinCookies', file, passed: () => full })
+    assert.equal(resolve(), full)
+    assert.equal((await readFile(file, 'utf8')).trim(), full, '长值应立刻写入文件')
+  } finally {
+    if (oldHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = oldHome
+    await rm(root, { recursive: true, force: true })
+  }
+})

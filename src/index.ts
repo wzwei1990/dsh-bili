@@ -165,6 +165,19 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
   })
   ownBiliCookie = () => client.cookieValue
 
+  // 保存后应立即落文件（之前是懒生成，第一次用到才写）；再挂一个低频兜底同步
+  const syncAmagiCookies = (): void => {
+    try {
+      cookieOverrides.amagiDouyinCookies?.()
+      cookieOverrides.amagiBilibiliCookies?.()
+    } catch (error) {
+      log('debug', '同步 amagi cookie 失败: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+  syncAmagiCookies()
+  const amagiCookieTimer = setInterval(syncAmagiCookies, 30_000)
+  amagiCookieTimer.unref?.()
+
   const storyboard = new StoryboardService({
     client,
     enabled: config.storyboard,
