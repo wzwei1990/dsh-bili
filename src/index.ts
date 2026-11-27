@@ -299,6 +299,18 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       resolve: (input: string) => client.resolve(input),
       subtitle: (input: string, options?: { maxChars?: number }) => client.readSubtitle(input, options),
       card: (input: string) => client.card(input),
+      /** 抖音完整分析（视频/音频/分镜；napcat 自动出分镜用） */
+      douyinAnalyze: (input: string) => buildDouyinAnalysis(input, {
+        maxHeight: config.douyinMaxHeight,
+        maxDurationSec: Math.max(1, config.douyinMaxMinutes) * 60,
+        ffmpegPath: config.ffmpegPath,
+        ytdlpPath: config.ytdlpPath,
+        ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
+        ...(config.amagiDouyinCookies === '' ? {} : { amagiDouyinCookies: config.amagiDouyinCookies }),
+        ...(config.douyinCookiesFile === '' ? {} : { cookiesFile: config.douyinCookiesFile }),
+        ...(config.storyboard ? { storyboard } : {}),
+        log,
+      }),
       /** 抖音元数据（优先 amagi；给 napcat 主动发言用，不下载视频） */
       douyinMeta: async (input: string) => {
         if (config.amagiBaseUrl !== '') {
