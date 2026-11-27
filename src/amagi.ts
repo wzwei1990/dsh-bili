@@ -25,6 +25,22 @@ export interface AmagiOptions {
   /** 例如 http://amagi:4567 或 http://127.0.0.1:4567 */
   baseUrl: string
   timeoutMs?: number
+  /** 按请求下发的平台 cookie（留空=游客态） */
+  cookie?: string
+}
+
+function amagiRoot(baseUrl: string): string {
+  return baseUrl.trim().replace(/\/+$/, '')
+}
+
+async function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown }> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  return { status: response.status, json: await response.json().catch(() => undefined) }
 }
 
 interface AmagiResponse {
@@ -106,12 +122,26 @@ export async function fetchDouyinWork(input: string, options: AmagiOptions): Pro
     if (id === undefined) throw new Error('这个抖音链接里没有作品 id（可能是直播/用户主页）')
     return fetchDouyinWork('https://www.douyin.com/video/' + id, options)
   }
-  const json = await fetch(amagiDouyinUrl(base, awemeId), {
-    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-  }).then(async response => {
+  const timeoutMs = options.timeoutMs ?? 15_000
+  const cookie = (options.cookie ?? '').trim()
+  let json: AmagiResponse
+  if (cookie !== '') {
+    // 新版容器：cookie 随请求下发（设置页管理，无需 .env/重启）
+    const posted = await postJson(amagiRoot(base) + '/amagi/douyin/work', { aweme_id: awemeId, cookie }, timeoutMs)
+    if (posted.status === 404 || posted.status === 405) {
+      // 老容器没有这个接口 → 回退游客态原路由
+      const response = await fetch(amagiDouyinUrl(base, awemeId), { signal: AbortSignal.timeout(timeoutMs) })
+      if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
+      json = await response.json() as AmagiResponse
+    } else {
+      if (posted.status >= 400) throw new Error('amagi HTTP ' + String(posted.status))
+      json = posted.json as AmagiResponse
+    }
+  } else {
+    const response = await fetch(amagiDouyinUrl(base, awemeId), { signal: AbortSignal.timeout(timeoutMs) })
     if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
-    return await response.json() as AmagiResponse
-  })
+    json = await response.json() as AmagiResponse
+  }
   const meta = parseAmagiWork(json, '')
   if (meta === undefined) throw new Error('amagi 解析失败：' + (json.message ?? '响应里没有作品详情'))
   return meta
@@ -149,14 +179,28 @@ export async function fetchBiliPlayUrls(
   const base = options.baseUrl.trim()
   if (base === '') throw new Error('未配置 amagiBaseUrl')
   const query = 'avid=' + String(input.avid) + '&cid=' + String(input.cid) + '&qn=' + String(input.qn ?? 64)
-  const response = await fetch(base.replace(/\/+$/, '') + '/api/bilibili/fetch_video_playurl?' + query, {
-    signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
-  })
-  if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
-  const json = await response.json() as {
+  const timeoutMs = options.timeoutMs ?? 20_000
+  const cookie = (options.cookie ?? '').trim()
+  type PlayResponse = {
     success?: boolean
     message?: string
     data?: { data?: { durl?: Array<{ url?: string }>; timelength?: number } }
+  }
+  let json: PlayResponse
+  if (cookie !== '') {
+    const posted = await postJson(amagiRoot(base) + '/amagi/bilibili/playurl', { avid: input.avid, cid: input.cid, qn: input.qn ?? 64, cookie }, timeoutMs)
+    if (posted.status === 404 || posted.status === 405) {
+      const response = await fetch(amagiRoot(base) + '/api/bilibili/fetch_video_playurl?' + query, { signal: AbortSignal.timeout(timeoutMs) })
+      if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
+      json = await response.json() as PlayResponse
+    } else {
+      if (posted.status >= 400) throw new Error('amagi HTTP ' + String(posted.status))
+      json = posted.json as PlayResponse
+    }
+  } else {
+    const response = await fetch(amagiRoot(base) + '/api/bilibili/fetch_video_playurl?' + query, { signal: AbortSignal.timeout(timeoutMs) })
+    if (!response.ok) throw new Error('amagi HTTP ' + String(response.status))
+    json = await response.json() as PlayResponse
   }
   if (json.success !== true) throw new Error('amagi 取 B 站播放地址失败：' + (json.message ?? '未知错误'))
   const durl = json.data?.data?.durl ?? []

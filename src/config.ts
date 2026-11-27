@@ -50,6 +50,10 @@ export interface ConfigShape {
   douyinMaxMinutes: number
   /** amagi 服务地址（抖音解析；空=只用 yt-dlp） */
   amagiBaseUrl: string
+  /** amagi 用的抖音 cookie（随请求下发，可留空） */
+  amagiDouyinCookies: string
+  /** amagi 用的 B 站 cookie（随请求下发，可留空） */
+  amagiBilibiliCookies: string
   /** 抖音 cookies.txt（yt-dlp 路径用，可选） */
   douyinCookiesFile: string
   /** 日志级别 */
@@ -100,6 +104,10 @@ export const Config = z.object({
     .description('抖音视频最大时长（分钟，超过拒绝下载）').volatile(),
   amagiBaseUrl: z.string().default('')
     .description('amagi 服务地址（如 http://amagi:4567）：抖音解析优先走它；B 站 CDN 风控时作为兜底').volatile(),
+  amagiDouyinCookies: z.string().role('secret').default('')
+    .description('amagi 抖音 cookie（可选；随请求下发，不需要在服务器 .env 里配）').volatile(),
+  amagiBilibiliCookies: z.string().role('secret').default('')
+    .description('amagi B 站 cookie（可选；随请求下发，不需要在服务器 .env 里配）').volatile(),
   douyinCookiesFile: z.string().default('')
     .description('抖音 cookies.txt 路径（仅 yt-dlp 路径需要；amagi 不需要）').volatile(),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn')]).default('info')
@@ -128,6 +136,8 @@ export const DEFAULTS: ConfigShape = {
   douyinMaxHeight: 720,
   douyinMaxMinutes: 10,
   amagiBaseUrl: '',
+  amagiDouyinCookies: '',
+  amagiBilibiliCookies: '',
   douyinCookiesFile: '',
   logLevel: 'info',
 }
@@ -147,7 +157,8 @@ export function readVolatile<T>(value: unknown): T | undefined {
 }
 
 const STRING_KEYS = new Set<keyof ConfigShape>([
-  'sessdata', 'cookieFile', 'ffmpegPath', 'ytdlpPath', 'amagiBaseUrl', 'douyinCookiesFile',
+  'sessdata', 'cookieFile', 'ffmpegPath', 'ytdlpPath', 'amagiBaseUrl',
+  'amagiDouyinCookies', 'amagiBilibiliCookies', 'douyinCookiesFile',
 ])
 const BOOLEAN_KEYS = new Set<keyof ConfigShape>(['allowWrite', 'autoWatchOwnComments', 'storyboard'])
 

@@ -85,6 +85,20 @@
           placeholder: '本机 DSH：http://127.0.0.1:4567；Docker 内：http://amagi:4567',
           hint: 'amagi 是独立容器，本地签名、无头可用。抖音解析优先走它；B 站 CDN 风控（403/567）时作为兜底（返回完整 mp4，下载后本地抽帧）。B 站正常情况仍走官方流，不强制依赖它。',
         },
+        {
+          key: 'amagiDouyinCookies',
+          label: 'amagi 抖音 cookie（可选）',
+          kind: 'textarea',
+          placeholder: 'ttwid=...; 其它 cookie 用;分隔（留空=游客态）',
+          hint: '随请求下发给 amagi，不需要改服务器 .env、也不用重启容器。公开作品留空即可；私密/收藏/部分评论接口才需要。',
+        },
+        {
+          key: 'amagiBilibiliCookies',
+          label: 'amagi B 站 cookie（可选）',
+          kind: 'textarea',
+          placeholder: 'SESSDATA=...; bili_jct=...; buvid3=...（留空=游客态）',
+          hint: '同样随请求下发。B 站 CDN 兜底一般游客态就够；遇到 amagi 报风控或要分析会员/私密视频时再填（可直接用上面 B 站账号里的那份 cookie）。',
+        },
 
         { section: '抖音解析参数' },
         {

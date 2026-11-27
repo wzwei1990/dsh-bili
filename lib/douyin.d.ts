@@ -31,6 +31,8 @@ export interface DouyinOptions {
     cookiesFile?: string;
     /** amagi 服务地址（如 http://amagi:4567）；配了就优先走它 */
     amagiBaseUrl?: string;
+    /** amagi 用的抖音 cookie（随请求下发） */
+    amagiDouyinCookies?: string;
     /** 分镜服务（不传就不生成分镜图） */
     storyboard?: StoryboardService;
     log?: (level: 'debug' | 'info' | 'warn', message: string) => void;

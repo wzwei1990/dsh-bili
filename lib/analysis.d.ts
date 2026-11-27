@@ -14,6 +14,8 @@ export interface BiliAnalysisOptions {
     ffmpegPath?: string;
     /** amagi 服务地址（B 站 CDN 被风控时的兜底流） */
     amagiBaseUrl?: string;
+    /** amagi 用的 B 站 cookie（随请求下发） */
+    amagiBilibiliCookies?: string;
     /** 分镜服务（不传就不生成分镜图） */
     storyboard?: StoryboardService;
     log?: (level: 'debug' | 'info' | 'warn', message: string) => void;

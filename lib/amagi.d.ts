@@ -16,6 +16,8 @@ export interface AmagiOptions {
     /** 例如 http://amagi:4567 或 http://127.0.0.1:4567 */
     baseUrl: string;
     timeoutMs?: number;
+    /** 按请求下发的平台 cookie（留空=游客态） */
+    cookie?: string;
 }
 interface AmagiResponse {
     success?: boolean;

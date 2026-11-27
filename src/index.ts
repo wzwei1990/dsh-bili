@@ -232,6 +232,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     biliAnalyze: (input: string) => analyzeBili(input, client, {
       ffmpegPath: config.ffmpegPath,
       ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
+      ...(config.amagiBilibiliCookies === '' ? {} : { amagiBilibiliCookies: config.amagiBilibiliCookies }),
       ...(config.storyboard ? { storyboard } : {}),
       log,
     }),
@@ -241,6 +242,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       ffmpegPath: config.ffmpegPath,
       ytdlpPath: config.ytdlpPath,
       ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
+      ...(config.amagiDouyinCookies === '' ? {} : { amagiDouyinCookies: config.amagiDouyinCookies }),
       ...(config.douyinCookiesFile === '' ? {} : { cookiesFile: config.douyinCookiesFile }),
       ...(config.storyboard ? { storyboard } : {}),
       log,
@@ -258,7 +260,10 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       /** 抖音元数据（优先 amagi；给 napcat 主动发言用，不下载视频） */
       douyinMeta: async (input: string) => {
         if (config.amagiBaseUrl !== '') {
-          const work = await fetchDouyinWork(input, { baseUrl: config.amagiBaseUrl })
+          const work = await fetchDouyinWork(input, {
+            baseUrl: config.amagiBaseUrl,
+            ...(config.amagiDouyinCookies === '' ? {} : { cookie: config.amagiDouyinCookies }),
+          })
           return {
             title: work.title, uploader: work.uploader, durationSec: work.durationSec,
             description: work.description, url: work.webpageUrl,

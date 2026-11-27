@@ -32,6 +32,8 @@ export interface BiliAnalysisOptions {
   ffmpegPath?: string
   /** amagi 服务地址（B 站 CDN 被风控时的兜底流） */
   amagiBaseUrl?: string
+  /** amagi 用的 B 站 cookie（随请求下发） */
+  amagiBilibiliCookies?: string
   /** 分镜服务（不传就不生成分镜图） */
   storyboard?: StoryboardService
   log?: (level: 'debug' | 'info' | 'warn', message: string) => void
@@ -133,7 +135,10 @@ export async function analyzeBili(
   let amagiUrls: string[] | undefined
   if (options.amagiBaseUrl !== undefined && options.amagiBaseUrl !== '' && (storyboard === undefined || audioPath === undefined)) {
     try {
-      const play = await fetchBiliPlayUrls({ avid: info.aid, cid: info.cid }, { baseUrl: options.amagiBaseUrl })
+      const play = await fetchBiliPlayUrls({ avid: info.aid, cid: info.cid }, {
+        baseUrl: options.amagiBaseUrl,
+        ...(options.amagiBilibiliCookies === undefined ? {} : { cookie: options.amagiBilibiliCookies }),
+      })
       amagiUrls = play.urls
       log('info', 'B 站分析：走 amagi 兜底（' + String(play.urls.length) + ' 段）')
     } catch (error) {

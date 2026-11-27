@@ -49,6 +49,10 @@ export interface ConfigShape {
     douyinMaxMinutes: number;
     /** amagi 服务地址（抖音解析；空=只用 yt-dlp） */
     amagiBaseUrl: string;
+    /** amagi 用的抖音 cookie（随请求下发，可留空） */
+    amagiDouyinCookies: string;
+    /** amagi 用的 B 站 cookie（随请求下发，可留空） */
+    amagiBilibiliCookies: string;
     /** 抖音 cookies.txt（yt-dlp 路径用，可选） */
     douyinCookiesFile: string;
     /** 日志级别 */
@@ -76,6 +80,8 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     douyinMaxHeight: z<number, number, "volatile-defined">;
     douyinMaxMinutes: z<number, number, "volatile-defined">;
     amagiBaseUrl: z<string, string, "volatile-defined">;
+    amagiDouyinCookies: z<string, string, "volatile-defined">;
+    amagiBilibiliCookies: z<string, string, "volatile-defined">;
     douyinCookiesFile: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, Schemastery.ObjectT<NoInfer<{
@@ -100,6 +106,8 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     douyinMaxHeight: z<number, number, "volatile-defined">;
     douyinMaxMinutes: z<number, number, "volatile-defined">;
     amagiBaseUrl: z<string, string, "volatile-defined">;
+    amagiDouyinCookies: z<string, string, "volatile-defined">;
+    amagiBilibiliCookies: z<string, string, "volatile-defined">;
     douyinCookiesFile: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
 }>>, "plain">;
