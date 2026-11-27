@@ -34,6 +34,8 @@ export interface StoryboardOptions {
   /** 可选：字体文件（有就给每格加时间戳；没有就跳过） */
   fontFile?: string
   timeoutMs?: number
+  /** 整体截止时间（ms 时间戳）：抽帧/拼图/波形开始前检查，超过就抛错 */
+  deadlineAt?: number
 }
 
 export interface StoryboardResult {
@@ -132,10 +134,14 @@ export async function buildStoryboard(options: StoryboardOptions): Promise<Story
   // workDir 由调用方给时可能不存在：先建出来（Windows 上 ffmpeg 不会自己创建目录）
   await mkdir(workDir, { recursive: true })
   const extra = headerArgs(options.headers)
+  const remaining = (): number => options.deadlineAt === undefined ? Number.POSITIVE_INFINITY : options.deadlineAt - Date.now()
+  const checkDeadline = (): void => {
+    if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) throw new Error('分镜超时（' + String(Math.round((options.timeoutMs ?? 0) / 1000)) + 's 预算用尽）')
+  }
 
   let durationSec = 0
   try {
-    durationSec = await probeDuration(ffprobe, options.streamUrl, extra, Math.min(timeoutMs, 30_000))
+    durationSec = await probeDuration(ffprobe, options.streamUrl, extra, Math.max(2000, Math.min(timeoutMs, 30_000, remaining())))
   } catch (error) {
     throw new Error('读不到视频时长：' + (error instanceof Error ? error.message : String(error)))
   }
@@ -147,6 +153,7 @@ export async function buildStoryboard(options: StoryboardOptions): Promise<Story
 
   // 1) 逐帧抽（-ss 在 -i 前，快速 seek）
   for (const [index, at] of stamps.entries()) {
+    checkDeadline()
     const label = clockOf(at)
     const text = digiFont === undefined ? [] : [
       '-vf',
@@ -159,6 +166,7 @@ export async function buildStoryboard(options: StoryboardOptions): Promise<Story
       ? ['-vf', 'scale=' + String(cellWidth) + ':' + String(cellHeight) + ':force_original_aspect_ratio=decrease,'
         + 'pad=' + String(cellWidth) + ':' + String(cellHeight) + ':(ow-iw)/2:(oh-ih)/2:color=black']
       : text
+    const stepTimeout = Math.max(2000, Math.min(60_000, remaining()))
     await runBinary(ffmpeg, [
       '-y', ...extra,
       '-ss', String(at),
@@ -166,8 +174,10 @@ export async function buildStoryboard(options: StoryboardOptions): Promise<Story
       '-frames:v', '1',
       ...scale,
       join(workDir, 'frame-' + String(index).padStart(2, '0') + '.png'),
-    ], Math.min(timeoutMs, 60_000))
+    ], stepTimeout)
   }
+
+  checkDeadline()
 
   // 2) 拼网格
   const { cols, rows } = gridOf(frames)
@@ -184,8 +194,10 @@ export async function buildStoryboard(options: StoryboardOptions): Promise<Story
   // 3) 音频响度波形（没有音轨就跳过）
   const wavePath = join(workDir, 'wave.png')
   let withWaveform = false
+  const waveAllowed = options.deadlineAt === undefined || remaining() > 3000
   const audioSource = options.audioUrl ?? options.streamUrl
   try {
+    if (!waveAllowed) throw new Error('跳过波形：时间预算用尽')
     await runBinary(ffmpeg, [
       '-y', ...extra,
       '-i', audioSource,

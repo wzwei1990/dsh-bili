@@ -17,6 +17,8 @@ export interface StoryboardOptions {
     /** 可选：字体文件（有就给每格加时间戳；没有就跳过） */
     fontFile?: string;
     timeoutMs?: number;
+    /** 整体截止时间（ms 时间戳）：抽帧/拼图/波形开始前检查，超过就抛错 */
+    deadlineAt?: number;
 }
 export interface StoryboardResult {
     /** 拼好的分镜图（绝对路径） */

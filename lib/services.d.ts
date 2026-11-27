@@ -51,6 +51,11 @@ export declare class StoryboardService {
     build(input: string): Promise<StoryboardOutcome>;
     /** 对本地视频文件生成分镜（amagi 兜底下载后使用） */
     buildFromLocalFile(filePath: string): Promise<StoryboardOutcome>;
+    /**
+     * 快速分镜（给 napcat 主动发言用）：B 站只试 1 个候选、单次 12 秒；
+     * 失败就返回错误，不做多镜像重试，避免把群聊回复拖到 20 秒以上。
+     */
+    buildQuick(input: string): Promise<StoryboardOutcome>;
     private buildFromFile;
     /** 把底层错误翻译成用户能行动的提示 */
     private explain;
@@ -67,6 +72,12 @@ export declare class StoryboardService {
         candidates?: string[];
         audioCandidates?: string[];
         headers: Record<string, string>;
+        /** 最多试几个候选镜像（默认 6） */
+        maxCandidates?: number;
+        /** 单次抽帧整体超时（默认沿用 buildStoryboard 的 180s） */
+        perAttemptTimeoutMs?: number;
+        /** 整体截止时间（ms 时间戳） */
+        deadlineAt?: number;
     }): Promise<StoryboardOutcome>;
     private persist;
 }

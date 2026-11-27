@@ -153,6 +153,42 @@ export class StoryboardService {
     return this.buildFromFile(filePath, deps)
   }
 
+  /**
+   * 快速分镜（给 napcat 主动发言用）：B 站只试 1 个候选、单次 12 秒；
+   * 失败就返回错误，不做多镜像重试，避免把群聊回复拖到 20 秒以上。
+   */
+  async buildQuick(input: string): Promise<StoryboardOutcome> {
+    if (!this.options.enabled) throw new Error('分镜未启用（配置 storyboard=false）')
+    const trimmed = input.trim()
+    const isBiliId = /^(BV[0-9A-Za-z]{10}|av\d{1,12})$/i.test(trimmed)
+    if (!/^https?:\/\//i.test(trimmed) && !isBiliId) return this.buildFromLocalFile(trimmed)
+    if (isBiliId || !isGenericVideoUrl(trimmed)) {
+      const stream = await this.options.client.streamUrl(trimmed)
+      const first = stream.candidates[0] ?? stream.url
+      return this.buildFromBiliStream({
+        info: stream.info,
+        url: first,
+        candidates: [first],
+        ...(stream.audioUrl === undefined ? {} : { audioUrl: stream.audioUrl }),
+        headers: stream.headers,
+        maxCandidates: 2,
+        perAttemptTimeoutMs: 12_000,
+        deadlineAt: Date.now() + 15_000,
+      })
+    }
+    return this.buildFromLocalFile(await (async () => {
+      const downloaded = await import('./ytdlp.js').then(async module => {
+        const bin = await this.ensureYtDlp()
+        if (bin === '') throw new Error('这个链接需要 yt-dlp（未安装）')
+        const { mkdtemp } = await import('node:fs/promises')
+        const { join } = await import('node:path')
+        const { tmpdir } = await import('node:os')
+        return await module.downloadWithYtDlp(trimmed, { bin, dir: await mkdtemp(join(tmpdir(), 'bili-quick-')) })
+      })
+      return downloaded.filePath
+    })())
+  }
+
   private async buildFromFile(filePath: string, deps: StoryboardDeps, outDir?: string): Promise<StoryboardOutcome> {
     const out = outDir ?? this.outputRoot()
     await mkdir(out, { recursive: true })
@@ -210,6 +246,12 @@ export class StoryboardService {
     candidates?: string[]
     audioCandidates?: string[]
     headers: Record<string, string>
+    /** 最多试几个候选镜像（默认 6） */
+    maxCandidates?: number
+    /** 单次抽帧整体超时（默认沿用 buildStoryboard 的 180s） */
+    perAttemptTimeoutMs?: number
+    /** 整体截止时间（ms 时间戳） */
+    deadlineAt?: number
   }): Promise<StoryboardOutcome> {
     if (!this.options.enabled) throw new Error('分镜未启用（配置 storyboard=false）')
     const deps = await this.ensureDeps()
@@ -219,7 +261,8 @@ export class StoryboardService {
     await mkdir(outDir, { recursive: true })
 
     // B 站 CDN 部分镜像会被风控（403/567），DASH 的 baseUrl/backupUrl 逐个试
-    const candidates = (input.candidates !== undefined && input.candidates.length > 0 ? input.candidates : [input.url]).slice(0, 6)
+    const candidates = (input.candidates !== undefined && input.candidates.length > 0 ? input.candidates : [input.url])
+      .slice(0, Math.max(1, input.maxCandidates ?? 6))
     const audioCandidates = input.audioCandidates !== undefined && input.audioCandidates.length > 0
       ? input.audioCandidates.slice(0, 4)
       : (input.audioUrl === undefined ? [] : [input.audioUrl])
@@ -234,6 +277,8 @@ export class StoryboardService {
           frames: this.options.frames,
           deps,
           workDir,
+          ...(input.perAttemptTimeoutMs === undefined ? {} : { timeoutMs: input.perAttemptTimeoutMs }),
+          ...(input.deadlineAt === undefined ? {} : { deadlineAt: input.deadlineAt }),
         })
         const imagePath = await this.persist(result.imagePath, outDir, 'bili-' + input.info.bvid)
         return {
