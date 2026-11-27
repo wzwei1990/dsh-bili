@@ -15,6 +15,12 @@ import { join } from 'node:path'
 
 import { extractScalarFromYaml } from './profilecookie.js'
 
+/** 显式配置优先；为空时用复用值（如插件自己的 B 站 cookie） */
+export function preferConfigured(configured: string, fallback: string): string {
+  const value = configured.trim()
+  return value !== '' ? value : fallback.trim()
+}
+
 /** 文件 > profile 完整值 > 宿主传值（按“像完整 cookie”的程度挑） */
 export function chooseCookie(fileValue: string, profileValue: string, passedValue: string): string {
   if (fileValue.trim() !== '') return fileValue.trim()

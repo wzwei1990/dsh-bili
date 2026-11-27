@@ -107,7 +107,7 @@ export const Config = z.object({
   amagiDouyinCookies: z.string().role('secret').default('')
     .description('amagi 抖音 cookie（可选；随请求下发，不需要在服务器 .env 里配）').volatile(),
   amagiBilibiliCookies: z.string().role('secret').default('')
-    .description('amagi B 站 cookie（可选；随请求下发，不需要在服务器 .env 里配）').volatile(),
+    .description('amagi B 站 cookie（可选；留空=复用 dsh-bili 自己的 B 站 cookie，随请求下发）').volatile(),
   douyinCookiesFile: z.string().default('')
     .description('抖音 cookies.txt 路径（仅 yt-dlp 路径需要；amagi 不需要）').volatile(),
   logLevel: z.union([z.const('debug'), z.const('info'), z.const('warn')]).default('info')

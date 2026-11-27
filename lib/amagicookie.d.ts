@@ -1,3 +1,5 @@
+/** 显式配置优先；为空时用复用值（如插件自己的 B 站 cookie） */
+export declare function preferConfigured(configured: string, fallback: string): string;
 /** 文件 > profile 完整值 > 宿主传值（按“像完整 cookie”的程度挑） */
 export declare function chooseCookie(fileValue: string, profileValue: string, passedValue: string): string;
 export interface AmagiCookieResolverOptions {

@@ -27,7 +27,7 @@ import { analyzeBili } from './analysis.js'
 import { buildDouyinAnalysis, probeDouyinQuick } from './douyin.js'
 import { fetchDouyinWork } from './amagi.js'
 import { MIN_REAL_COOKIE_LENGTH, readCookieFromProfiles } from './profilecookie.js'
-import { createAmagiCookieResolver } from './amagicookie.js'
+import { createAmagiCookieResolver, preferConfigured } from './amagicookie.js'
 import { watchProfileCookie } from './cookiewatch.js'
 
 export { Config }
@@ -70,12 +70,15 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     passed: () => rawField('amagiDouyinCookies'),
     log,
   })
-  cookieOverrides.amagiBilibiliCookies = createAmagiCookieResolver({
+  const ownBiliCookieResolver = createAmagiCookieResolver({
     key: 'amagiBilibiliCookies',
     file: join(configDir, 'amagi-bilibili.txt'),
     passed: () => rawField('amagiBilibiliCookies'),
     log,
   })
+  // 留空时复用插件自己的 B 站 cookie（client 建好后才有值，所以用 holder 延迟取）
+  let ownBiliCookie = (): string => ''
+  cookieOverrides.amagiBilibiliCookies = () => preferConfigured(ownBiliCookieResolver(), ownBiliCookie())
 
   // 读取 cookie：文件优先；配置里的值只要够长就顺手同步进文件（"每次改自动保存一份"）
   const configCookie = config.sessdata.trim()
@@ -160,6 +163,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
     onCookieRefresh: persistCookie,
   })
+  ownBiliCookie = () => client.cookieValue
 
   const storyboard = new StoryboardService({
     client,

@@ -38,3 +38,11 @@ test('resolver：从 profile 读完整值并落文件；手动改文件后优先
     await rm(root, { recursive: true, force: true })
   }
 })
+
+import { preferConfigured } from '../lib/amagicookie.js'
+
+test('amagi B 站 cookie：显式配置优先，留空复用插件自己的', () => {
+  assert.equal(preferConfigured('SESSDATA=explicit', 'SESSDATA=own'), 'SESSDATA=explicit')
+  assert.equal(preferConfigured('', 'SESSDATA=own'), 'SESSDATA=own')
+  assert.equal(preferConfigured('  ', ' SESSDATA=own '), 'SESSDATA=own')
+})

@@ -97,7 +97,7 @@
           label: 'amagi B 站 cookie（可选）',
           kind: 'textarea',
           placeholder: 'SESSDATA=...; bili_jct=...; buvid3=...（留空=游客态）',
-          hint: '同样随请求下发。B 站 CDN 兜底一般游客态就够；遇到 amagi 报风控或要分析会员/私密视频时再填（可直接用上面 B 站账号里的那份 cookie）。',
+          hint: '留空 = 自动复用上面 B 站账号里的那份 cookie（会跟随 Set-Cookie 自动刷新）；填了则用填的。',
         },
 
         { section: '抖音解析参数' },
