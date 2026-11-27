@@ -172,6 +172,8 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     maxMinutes: config.maxStoryboardMinutes,
     ffmpegPath: config.ffmpegPath,
     ytdlpPath: config.ytdlpPath,
+    ...(config.amagiBaseUrl === '' ? {} : { amagiBaseUrl: config.amagiBaseUrl }),
+    amagiBilibiliCookies: () => config.amagiBilibiliCookies,
     log,
   })
 

@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import type { BiliClient, VideoInfo } from './bili.js'
 import { resolveStoryboardDeps, runBinary } from './deps.js'
 import { fetchBiliPlayUrls } from './amagi.js'
+import { rankBiliCandidates } from './cdn.js'
 import type { StoryboardService, StoryboardOutcome } from './services.js'
 
 export interface BiliAnalysis {
@@ -83,9 +84,9 @@ export async function analyzeBili(
   await mkdir(dir, { recursive: true })
 
   let audioPath: string | undefined
-  const audioCandidates = stream.audioCandidates.length > 0
+  const audioCandidates = rankBiliCandidates(stream.audioCandidates.length > 0
     ? stream.audioCandidates
-    : (stream.audioUrl === undefined ? [] : [stream.audioUrl])
+    : (stream.audioUrl === undefined ? [] : [stream.audioUrl]))
   if (audioCandidates.length > 0) {
     const deps = await resolveStoryboardDeps({ ffmpegPath: options.ffmpegPath ?? '' })
     if (deps.ffmpeg === undefined) {

@@ -10,6 +10,10 @@ export interface StoryboardServiceOptions {
     ytdlpPath: string;
     /** 产物根目录（缺省 ~/.dsh/dsh-bili/storyboards） */
     outputRoot?: string;
+    /** amagi 服务地址（B 站直连被 CDN 风控时的兜底） */
+    amagiBaseUrl?: string;
+    /** amagi 用的 B 站 cookie（活值；留空=游客态） */
+    amagiBilibiliCookies?: () => string;
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
 export interface StoryboardOutcome {
@@ -79,5 +83,7 @@ export declare class StoryboardService {
         /** 整体截止时间（ms 时间戳） */
         deadlineAt?: number;
     }): Promise<StoryboardOutcome>;
+    /** amagi 兜底：取 durl mp4 → 分段并行下载到本地 → 本地抽帧（不依赖 CDN 的 seek） */
+    private tryAmagiFallback;
     private persist;
 }
