@@ -96,6 +96,9 @@ MIT
 - 产物落在 `~/.dsh/dsh-bili/douyin/<作品id>/`：视频、`audio.wav`（平台中立，不生成任何下游专用格式）
 - 音频可交给 `tts_transcribe` 转台词，分镜图用 `read_image` 看画面；下游怎么用由调用方决定
 - B 站 CDN 风控时的兜底：amagi 的 `/api/bilibili/fetch_video_playurl` 返回完整 mp4，下载后本地抽帧（实测 1464×954）
+- amagi 的两个平台 cookie 与 B 站一致落文件：`~/.dsh/dsh-bili/amagi-douyin.txt` / `amagi-bilibili.txt`
+  - 读取**文件优先**；设置页保存的长值会从 profile YAML 自愈读取并写入文件
+  - 文件或 profile 变化后会重新读取（设置页保存 / 手动改文件都即时生效）
 
 ## B 站分析 / 抖音解析（2026-11-26）
 

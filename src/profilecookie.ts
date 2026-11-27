@@ -24,7 +24,11 @@ export interface ProfileCookieResult {
 }
 
 /** 从一段 YAML 文本里抽出 dsh-bili 的 sessdata（支持多行 plain scalar） */
-export function extractSessdataFromYaml(text: string, pluginId = 'dsh-bili'): string {
+/**
+ * 从 YAML 里抽 dsh-bili 块下的某个标量（支持 plain scalar 折叠续行、块标量、引号）。
+ * 宿主会把多行 plain scalar 传成截断值，所以直接读文件自愈。
+ */
+export function extractScalarFromYaml(text: string, key: string, pluginId = 'dsh-bili'): string {
   const lines = text.split(/\r?\n/)
   let blockStart = -1
   for (let i = 0; i < lines.length; i += 1) {
@@ -34,29 +38,54 @@ export function extractSessdataFromYaml(text: string, pluginId = 'dsh-bili'): st
     }
   }
   if (blockStart < 0) return ''
+  const keyPattern = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':\\s*(.*)$')
   let keyLine = -1
-  for (let i = blockStart + 1; i < Math.min(lines.length, blockStart + 300); i += 1) {
+  let first = ''
+  for (let i = blockStart + 1; i < Math.min(lines.length, blockStart + 600); i += 1) {
     const line = lines[i] ?? ''
-    // 遇到下一层插件条目就停
     if (/^\s*-\s*id:/.test(line)) break
-    if (/^\s*sessdata:\s*(.*)$/.test(line)) {
+    const hit = keyPattern.exec(line)
+    if (hit !== null) {
       keyLine = i
+      first = hit[1] ?? ''
       break
     }
   }
   if (keyLine < 0) return ''
-  const firstMatch = /^\s*sessdata:\s*(.*)$/.exec(lines[keyLine] ?? '')
-  const parts = [firstMatch?.[1] ?? '']
-  // 续行：只要不是"新 key"（形如 `  timeoutMs:`）或"新插件条目"（`- id:`）或空行，就算续行。
-  // 不依赖缩进——线上文件缩进不一定是我们预期的 4 空格。
-  for (let i = keyLine + 1; i < Math.min(lines.length, keyLine + 200); i += 1) {
+  const value = first.trim()
+  // 块标量：| 或 >
+  if (/^[|>][+-]?$/.test(value)) {
+    const parts: string[] = []
+    for (let i = keyLine + 1; i < Math.min(lines.length, keyLine + 400); i += 1) {
+      const line = lines[i] ?? ''
+      if (line.trim() === '') { parts.push(''); continue }
+      if (!/^\s+/.test(line)) break
+      parts.push(line.trim())
+    }
+    return parts.join(value.startsWith('>') ? ' ' : '\n').trim()
+  }
+  // 引号单行/多行：先剥引号
+  const quoted = /^(["'])([\s\S]*)\1$/.exec(value)
+  if (quoted !== null) {
+    const body = quoted[2] ?? ''
+    if (/[\r\n]/.test(body)) return body.replace(/\s*\r?\n\s*/g, ' ').trim()
+    return body.trim()
+  }
+  const parts = [value]
+  for (let i = keyLine + 1; i < Math.min(lines.length, keyLine + 400); i += 1) {
     const line = lines[i] ?? ''
     if (line.trim() === '') break
     if (/^\s*-\s*id:/.test(line)) break
+    // 新 key（与块内缩进同级或更浅）就停；续行一般缩进更深
     if (/^\s*[\w-]+:\s/.test(line)) break
     parts.push(line.trim())
   }
   return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+/** 兼容旧调用：只抽 sessdata */
+export function extractSessdataFromYaml(text: string, pluginId = 'dsh-bili'): string {
+  return extractScalarFromYaml(text, 'sessdata', pluginId)
 }
 
 /** 在 DSH_HOME 下的所有 profile 里找 dsh-bili 的 sessdata */
@@ -87,4 +116,35 @@ export function readCookieFromProfiles(): ProfileCookieResult | undefined {
     }
   }
   return undefined
+}
+
+/** 在 DSH_HOME 下的所有 profile 里找 dsh-bili 的某个标量（多行配置自愈用） */
+export function readScalarFromProfiles(key: string, pluginId = 'dsh-bili'): string {
+  const homeEnv = process.env.DSH_HOME
+  const bases = [
+    homeEnv !== undefined && homeEnv !== '' ? homeEnv : '',
+    join(homedir(), '.dsh'),
+  ].filter(base => base !== '')
+  for (const home of [...new Set(bases)]) {
+    const profilesDir = join(home, 'profiles')
+    if (!existsSync(profilesDir)) continue
+    let names: string[] = []
+    try {
+      names = readdirSync(profilesDir)
+    } catch {
+      continue
+    }
+    for (const name of names) {
+      const file = join(profilesDir, name, 'cordis.patch.yml')
+      if (!existsSync(file)) continue
+      try {
+        const text = readFileSync(file, 'utf8')
+        const value = extractScalarFromYaml(text, key, pluginId)
+        if (value !== '') return value
+      } catch {
+        // 忽略单个文件的读取失败
+      }
+    }
+  }
+  return ''
 }

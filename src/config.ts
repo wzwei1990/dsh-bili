@@ -166,13 +166,23 @@ const BOOLEAN_KEYS = new Set<keyof ConfigShape>(['allowWrite', 'autoWatchOwnComm
  * 配置代理：每次读字段都从 volatile 引用取当前值。
  * 这样设置页保存后**不用重启插件**，amagiBaseUrl / 抖音参数等立即生效。
  */
-export function resolveConfig(input: Partial<ConfigShape> | undefined): ConfigShape {
+export function resolveConfig(
+  input: Partial<ConfigShape> | undefined,
+  overrides: Partial<Record<keyof ConfigShape, string | (() => string)>> = {},
+): ConfigShape {
   const source = (input ?? {}) as Record<string, unknown>
   const base: ConfigShape = { ...DEFAULTS }
   return new Proxy(base, {
     get(target, prop, receiver) {
       if (typeof prop !== 'string' || !(prop in DEFAULTS)) return Reflect.get(target, prop, receiver)
       const key = prop as keyof ConfigShape
+      const override = overrides[key]
+      if (typeof override === 'function') {
+        const live = override()
+        if (live !== '') return live
+      } else if (typeof override === 'string' && override !== '') {
+        return override
+      }
       const value = readVolatile<unknown>(source[prop])
       if (value === undefined || value === null) return target[key]
       if (key === 'logLevel') {
